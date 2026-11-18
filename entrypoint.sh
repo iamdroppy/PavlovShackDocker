@@ -123,4 +123,6 @@ done
 # --- Start ------------------------------------------------------------------
 cd "$SERVER_DIR"
 log "Starting PavlovServer (branch '$STEAM_BRANCH') on port $GAME_PORT"
-exec ./PavlovServer.sh -PORT="$GAME_PORT" "$@"
+# Without a TTY the server block-buffers stdout, so `podman logs` lags minutes
+# behind Pavlov.log. stdbuf makes it line-buffered (inherited by the binary).
+exec stdbuf -oL -eL ./PavlovServer.sh -PORT="$GAME_PORT" "$@"

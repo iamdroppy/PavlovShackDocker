@@ -41,5 +41,25 @@ services:
       - ./config:/config:ro,z
     stop_grace_period: 30s
 
+  # Web manager (management/): sign in with RCON_PASSWORD at http://localhost:8080.
+  # Talks to RCON over the compose network, so RCON needn't be published on the host.
+  manager:
+    build:
+      context: ./management
+      dockerfile: Dockerfile
+    image: localhost/pavlov-manager:latest
+    container_name: pavlov-manager
+    restart: unless-stopped
+    depends_on:
+      - pavlov
+    environment:
+      Rcon__Host: pavlov
+      Rcon__Port: ${RCON_PORT:-9100}
+      # Set to true behind a reverse proxy (TLS) so the login throttle sees client IPs.
+      TrustForwardedHeaders: ${MANAGER_TRUST_PROXY:-true}
+    ports:
+      # 127.0.0.1 = this machine only. MANAGER_BIND=0.0.0.0 opens it to your network (plain HTTP).
+      - "${MANAGER_BIND:-127.0.0.1}:${MANAGER_PORT:-8118}:8080"
+
 volumes:
   pavlov-server:

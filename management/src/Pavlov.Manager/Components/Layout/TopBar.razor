@@ -1,0 +1,40 @@
+@inherits LiveComponent
+@inject NavigationManager Navigation
+
+<header class="sticky top-0 z-30 border-b border-white/[0.05] bg-ink-950/70 pt-[env(safe-area-inset-top)] backdrop-blur-2xl">
+    <div class="mx-auto flex h-16 max-w-6xl items-center gap-3 px-4 sm:px-6 lg:px-10">
+        <BrandMark Class="size-9 lg:hidden" />
+        <div class="min-w-0 flex-1">
+            <p class="truncate text-[0.9rem] font-semibold tracking-tight text-zinc-50 lg:hidden">@(Snapshot.Info?.ServerName ?? "Pavlov Shack")</p>
+            <p class="flex min-w-0 items-center gap-2 text-xs text-zinc-400 lg:text-[0.8rem]">
+                <StatusDot Online="Snapshot.IsOnline" />
+                @if (Snapshot.Info is { } info)
+                {
+                    <span class="truncate">
+                        <span class="hidden font-medium text-zinc-200 lg:inline">@(Snapshot.IsOnline ? "Live" : "Unreachable") ·</span>
+                        @info.DisplayMap · @PavlovCatalog.GameModeName(info.GameMode)
+                    </span>
+                }
+                else
+                {
+                    <span class="truncate">@(Snapshot.Error ?? "Connecting…")</span>
+                }
+            </p>
+        </div>
+
+        @if (Snapshot.Info is { } current)
+        {
+            <a href="players" class="chip h-8 gap-2 px-3 tabular-nums">
+                <Icon Name="players" Class="size-3.5" StrokeWidth="2" />
+                <span>@current.CurrentPlayers<span class="text-zinc-500">/@current.MaxPlayers</span></span>
+            </a>
+        }
+
+        <form method="post" action="logout" class="lg:hidden">
+            <AntiforgeryToken />
+            <button type="submit" class="btn btn-ghost btn-icon size-10 rounded-full" aria-label="Sign out">
+                <Icon Name="logout" Class="size-[1.15rem]" />
+            </button>
+        </form>
+    </div>
+</header>

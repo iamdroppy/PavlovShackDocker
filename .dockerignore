@@ -3,3 +3,5 @@
 config/
 README.md
 .gitignore
+management/
+.claude/

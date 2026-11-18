@@ -1,0 +1,36 @@
+@using Pavlov.Rcon
+<span class="@($"relative grid shrink-0 place-items-center rounded-2xl font-semibold uppercase ring-1 ring-inset {Palette} {Class}")">
+    @Initials
+    @if (Dead)
+    {
+        <span class="absolute -right-1 -bottom-1 grid size-5 place-items-center rounded-full bg-ink-850 text-zinc-400 ring-2 ring-ink-850">
+            <Icon Name="skull" Class="size-3.5" StrokeWidth="2" />
+        </span>
+    }
+</span>
+
+@code {
+    [Parameter, EditorRequired] public string Name { get; set; } = "";
+
+    [Parameter] public int TeamId { get; set; } = -1;
+
+    [Parameter] public bool Dead { get; set; }
+
+    [Parameter] public string Class { get; set; } = "size-11 text-sm";
+
+    private string Initials
+    {
+        get
+        {
+            var letters = Name.Where(char.IsLetterOrDigit).Take(2).ToArray();
+            return letters.Length == 0 ? "?" : new string(letters);
+        }
+    }
+
+    private string Palette => TeamId switch
+    {
+        PavlovCatalog.BlueTeam => "bg-team-blue/12 text-team-blue ring-team-blue/25",
+        PavlovCatalog.RedTeam => "bg-team-red/12 text-team-red ring-team-red/25",
+        _ => "bg-white/[0.06] text-zinc-300 ring-white/10",
+    };
+}

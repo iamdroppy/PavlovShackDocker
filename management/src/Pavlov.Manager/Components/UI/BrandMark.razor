@@ -1,0 +1,14 @@
+<span class="@($"relative inline-grid shrink-0 place-items-center overflow-hidden rounded-[30%] bg-linear-to-br from-signal-300 via-signal-400 to-signal-600 text-ink-950 shadow-[0_8px_24px_-10px] shadow-signal-400/80 ring-1 ring-black/10 ring-inset {Class}")">
+    <svg viewBox="0 0 24 24" class="size-[62%]" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+        <path d="M4.5 12a7.5 7.5 0 1 0 15 0a7.5 7.5 0 1 0-15 0" />
+        <path d="M12 2v5" />
+        <path d="M12 17v5" />
+        <path d="M2 12h5" />
+        <path d="M17 12h5" />
+        <path d="M11 12h2" stroke-width="3" />
+    </svg>
+</span>
+
+@code {
+    [Parameter] public string Class { get; set; } = "size-9";
+}

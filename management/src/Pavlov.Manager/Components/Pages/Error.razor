@@ -1,0 +1,28 @@
+@page "/Error"
+@attribute [AllowAnonymous]
+@layout AuthLayout
+@using System.Diagnostics
+
+<PageTitle>Error · Shack Control</PageTitle>
+
+<main class="flex flex-1 items-center justify-center px-5">
+    <div class="w-full max-w-sm text-center">
+        <span class="mx-auto grid size-14 place-items-center rounded-2xl bg-rose-500/15 text-rose-300"><Icon Name="alert" Class="size-7" /></span>
+        <h1 class="mt-6 text-2xl font-semibold tracking-tight">Something went wrong</h1>
+        <p class="mt-2 text-sm text-zinc-400">The request couldn't be completed.</p>
+        @if (RequestId is not null)
+        {
+            <p class="mt-4 font-mono text-xs text-zinc-600">Request @RequestId</p>
+        }
+        <a href="" class="btn btn-soft mt-8">Back to overview</a>
+    </div>
+</main>
+
+@code {
+    [CascadingParameter] private HttpContext? HttpContext { get; set; }
+
+    private string? RequestId { get; set; }
+
+    protected override void OnInitialized() =>
+        RequestId = Activity.Current?.Id ?? HttpContext?.TraceIdentifier;
+}

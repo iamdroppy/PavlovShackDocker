@@ -1,0 +1,280 @@
+@page "/"
+@inherits LiveComponent
+@inject RconActions Rcon
+@inject DialogService Dialogs
+
+<PageTitle>Overview · Shack Control</PageTitle>
+
+@if (Snapshot.Info is not { } info)
+{
+    @if (Snapshot.Error is { } error)
+    {
+        <div class="surface mt-6 animate-rise">
+            <EmptyState IconName="wifi-off" Title="Can't reach the server" Message="@error">
+                <button type="button" class="btn btn-soft mt-6" @onclick="Monitor.RequestRefresh">
+                    <Icon Name="refresh" Class="size-4" /> Try again
+                </button>
+            </EmptyState>
+        </div>
+    }
+    else
+    {
+        <div class="grid animate-pulse gap-4 lg:grid-cols-5">
+            <div class="surface h-80 lg:col-span-3"></div>
+            <div class="surface h-80 lg:col-span-2"></div>
+            <div class="surface h-32 lg:col-span-5"></div>
+        </div>
+    }
+}
+else
+{
+    <section class="grid gap-4 lg:grid-cols-5">
+        <article class="surface relative animate-rise overflow-hidden p-5 sm:p-7 lg:col-span-3">
+            <div aria-hidden="true" class="pointer-events-none absolute top-14 -right-6 text-right text-[6.5rem] whitespace-nowrap leading-none font-black tracking-[-0.06em] text-white/[0.03] uppercase select-none sm:text-[9.5rem]">@info.MapLabel</div>
+            <div aria-hidden="true" class="pointer-events-none absolute -top-28 -left-20 size-72 rounded-full bg-signal-400/[0.08] blur-3xl"></div>
+
+            <div class="relative">
+                <div class="flex flex-wrap items-center gap-2">
+                    <span class="@($"chip {(Snapshot.IsOnline ? "bg-signal-400/10 text-signal-300 ring-signal-400/20" : "bg-rose-500/10 text-rose-300 ring-rose-400/20")}")">
+                        <StatusDot Online="Snapshot.IsOnline" Class="scale-75" />
+                        @(Snapshot.IsOnline ? "Live" : "Unreachable")
+                    </span>
+                    @if (!string.IsNullOrEmpty(info.RoundState))
+                    {
+                        <span class="chip">@info.RoundState</span>
+                    }
+                    <span class="chip font-mono tracking-wider">@info.GameMode</span>
+                </div>
+
+                <p class="eyebrow mt-10">Now playing</p>
+                <h1 class="mt-2 text-[3.25rem] leading-[0.9] font-semibold tracking-[-0.05em] text-zinc-50 sm:text-7xl" tabindex="-1">@info.DisplayMap</h1>
+                <p class="mt-4 text-[0.95rem] text-zinc-300">
+                    @PavlovCatalog.GameModeName(info.GameMode)
+                    <span class="mx-1.5 text-zinc-700">/</span>
+                    <span class="text-zinc-500">@info.ServerName</span>
+                </p>
+
+                <dl class="mt-10 grid grid-cols-3 gap-2 sm:gap-3">
+                    <div class="rounded-2xl bg-ink-950/40 p-3.5 ring-1 ring-white/[0.05] sm:p-4">
+                        <dt class="eyebrow !text-[0.6rem]">Players</dt>
+                        <dd class="mt-2 text-2xl font-semibold tracking-tight tabular-nums">@info.CurrentPlayers<span class="text-base text-zinc-600">/@info.MaxPlayers</span></dd>
+                    </div>
+                    <div class="rounded-2xl bg-ink-950/40 p-3.5 ring-1 ring-white/[0.05] sm:p-4">
+                        <dt class="eyebrow !text-[0.6rem]">Avg ping</dt>
+                        <dd class="mt-2 text-2xl font-semibold tracking-tight tabular-nums">@AveragePing<span class="text-base text-zinc-600">@(Snapshot.Players.Count > 0 ? "ms" : "")</span></dd>
+                    </div>
+                    <div class="rounded-2xl bg-ink-950/40 p-3.5 ring-1 ring-white/[0.05] sm:p-4">
+                        <dt class="eyebrow !text-[0.6rem]">Alive</dt>
+                        <dd class="mt-2 text-2xl font-semibold tracking-tight tabular-nums">@Snapshot.Players.Count(p => !p.Dead)</dd>
+                    </div>
+                </dl>
+            </div>
+        </article>
+
+        <article class="surface flex animate-rise flex-col p-5 [animation-delay:60ms] sm:p-7 lg:col-span-2">
+            @if (info.Teams)
+            {
+                <div class="flex items-center justify-between">
+                    <p class="eyebrow">Scoreboard</p>
+                    <Icon Name="trophy" Class="size-4 text-zinc-600" />
+                </div>
+                <div class="mt-auto grid grid-cols-[1fr_auto_1fr] items-end gap-3 pt-8">
+                    <div>
+                        <p class="flex items-center gap-2 text-xs font-semibold tracking-wide text-team-blue uppercase"><span class="size-2 rounded-full bg-team-blue shadow-[0_0_10px] shadow-team-blue"></span>Blue</p>
+                        <p class="mt-2 text-7xl leading-none font-semibold tracking-[-0.05em] tabular-nums">@info.Team0Score</p>
+                        <p class="mt-2 text-xs text-zinc-500">@TeamCount(PavlovCatalog.BlueTeam) players</p>
+                    </div>
+                    <span class="pb-9 font-mono text-xs text-zinc-600">VS</span>
+                    <div class="text-right">
+                        <p class="flex items-center justify-end gap-2 text-xs font-semibold tracking-wide text-team-red uppercase">Red<span class="size-2 rounded-full bg-team-red shadow-[0_0_10px] shadow-team-red"></span></p>
+                        <p class="mt-2 text-7xl leading-none font-semibold tracking-[-0.05em] tabular-nums">@info.Team1Score</p>
+                        <p class="mt-2 text-xs text-zinc-500">@TeamCount(PavlovCatalog.RedTeam) players</p>
+                    </div>
+                </div>
+                <div class="mt-7 flex h-2 gap-1 overflow-hidden rounded-full">
+                    <div class="rounded-full bg-team-blue transition-[width] duration-700" style="width: @BlueShare(info)%"></div>
+                    <div class="flex-1 rounded-full bg-team-red"></div>
+                </div>
+            }
+            else
+            {
+                <p class="eyebrow">Leaders</p>
+                @if (Leaders.Count == 0)
+                {
+                    <EmptyState IconName="trophy" Title="No scores yet" Message="Leaders show up once players join." Class="!py-8" />
+                }
+                else
+                {
+                    <ol class="mt-5 space-y-3">
+                        @foreach (var (player, rank) in Leaders.Take(3).Select((p, i) => (p, i + 1)))
+                        {
+                            <li class="flex items-center gap-3">
+                                <span class="w-5 font-mono text-sm text-zinc-600">@rank</span>
+                                <Avatar Name="@player.DisplayName" TeamId="player.TeamId" Class="size-9 text-xs" />
+                                <span class="min-w-0 flex-1 truncate text-sm font-medium">@player.DisplayName</span>
+                                <span class="text-lg font-semibold tabular-nums">@player.Score</span>
+                            </li>
+                        }
+                    </ol>
+                }
+            }
+        </article>
+    </section>
+
+    <section class="mt-9">
+        <div class="mb-3 flex items-baseline justify-between">
+            <h2 class="eyebrow">Match control</h2>
+            <span class="text-[0.7rem] text-zinc-600">@UpdatedLabel</span>
+        </div>
+        <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            <ActionTile Title="Next map" Subtitle="Rotate now" IconName="next" OnClick="RotateAsync" />
+            <ActionTile Title="Pause" Subtitle="Freeze for 60 s" IconName="pause" OnClick="PauseAsync" />
+            <ActionTile Title="Resume" Subtitle="15 s countdown" IconName="play" OnClick="ResumeAsync" />
+            <ActionTile Title="Reset SND" Subtitle="@(IsSnd(info) ? "Restart the match" : "SND only")" IconName="reset" Disabled="!IsSnd(info)" OnClick="ResetSndAsync" />
+            <ActionTile Title="Clear vehicles" Subtitle="Remove empty ones" IconName="vehicle" OnClick="ClearVehiclesAsync" />
+        </div>
+    </section>
+
+    <section class="mt-9 grid gap-4 lg:grid-cols-2">
+        <article class="surface p-5 sm:p-6">
+            <div class="flex items-start gap-3">
+                <span class="grid size-10 place-items-center rounded-2xl bg-white/[0.05] text-zinc-300 ring-1 ring-white/[0.07]"><Icon Name="gift" Class="size-5" /></span>
+                <div>
+                    <h2 class="text-base font-semibold tracking-tight">Team supply</h2>
+                    <p class="text-sm text-zinc-500">Cash or gear for a whole team.</p>
+                </div>
+            </div>
+            <div class="segmented mt-5 flex w-full">
+                <button type="button" class="@(supplyTeam == PavlovCatalog.BlueTeam ? "is-active !text-team-blue" : "")" @onclick="() => supplyTeam = PavlovCatalog.BlueTeam"><span class="size-2 rounded-full bg-team-blue"></span>Blue</button>
+                <button type="button" class="@(supplyTeam == PavlovCatalog.RedTeam ? "is-active !text-team-red" : "")" @onclick="() => supplyTeam = PavlovCatalog.RedTeam"><span class="size-2 rounded-full bg-team-red"></span>Red</button>
+            </div>
+            <div class="mt-4 space-y-3">
+                <div class="flex gap-2">
+                    <div class="relative flex-1">
+                        <span class="pointer-events-none absolute inset-y-0 left-4 grid place-items-center text-sm text-zinc-500">$</span>
+                        <input type="number" inputmode="numeric" min="1" class="field pl-8 tabular-nums" @bind="supplyCash" aria-label="Cash amount" />
+                    </div>
+                    <button type="button" class="btn btn-soft h-12 px-5" @onclick="GiveTeamCashAsync">Give cash</button>
+                </div>
+                <div class="flex gap-2">
+                    <input list="overview-items" class="field flex-1" @bind="supplyItem" placeholder="Item, e.g. ak47" aria-label="Item id" autocomplete="off" />
+                    <button type="button" class="btn btn-soft h-12 px-5" disabled="@string.IsNullOrWhiteSpace(supplyItem)" @onclick="GiveTeamItemAsync">Give item</button>
+                </div>
+                <datalist id="overview-items">
+                    @foreach (var item in items)
+                    {
+                        <option value="@item"></option>
+                    }
+                </datalist>
+            </div>
+        </article>
+
+        <article class="surface p-5 sm:p-6">
+            <div class="flex items-center justify-between">
+                <h2 class="text-base font-semibold tracking-tight">Top players</h2>
+                <a href="players" class="btn btn-ghost btn-sm -mr-2">All <Icon Name="chevron-right" Class="size-4" /></a>
+            </div>
+            @if (Leaders.Count == 0)
+            {
+                <EmptyState IconName="players" Title="Nobody's in yet" Message="Players appear here the moment they join." Class="!py-10" />
+            }
+            else
+            {
+                <ul class="mt-3 divide-y divide-white/[0.05]">
+                    @foreach (var player in Leaders.Take(5))
+                    {
+                        <li class="flex items-center gap-3 py-3">
+                            <Avatar Name="@player.DisplayName" TeamId="player.TeamId" Dead="player.Dead" Class="size-10 text-xs" />
+                            <div class="min-w-0 flex-1">
+                                <p class="truncate text-sm font-semibold">@player.DisplayName</p>
+                                <p class="font-mono text-[0.72rem] text-zinc-500">@player.KDA K/D/A</p>
+                            </div>
+                            <span class="text-right">
+                                <span class="block text-base font-semibold tabular-nums">@player.Score</span>
+                                <span class="block text-[0.7rem] text-zinc-500 tabular-nums">$@player.Cash</span>
+                            </span>
+                        </li>
+                    }
+                </ul>
+            }
+        </article>
+    </section>
+
+    <section class="mt-9">
+        <div class="flex flex-col gap-4 rounded-3xl border border-rose-400/10 bg-rose-500/[0.03] p-5 sm:flex-row sm:items-center sm:p-6">
+            <span class="grid size-11 shrink-0 place-items-center rounded-2xl bg-rose-500/10 text-rose-300 ring-1 ring-rose-400/15"><Icon Name="power" Class="size-5" /></span>
+            <div class="flex-1">
+                <p class="text-sm font-semibold">Shut down the server</p>
+                <p class="mt-0.5 text-xs leading-relaxed text-zinc-500">Stops the game immediately. With <span class="font-mono">restart: unless-stopped</span>, Podman starts it again.</p>
+            </div>
+            <button type="button" class="btn btn-danger" @onclick="ShutdownAsync">Shut down</button>
+        </div>
+    </section>
+}
+
+@code {
+    private int supplyTeam = PavlovCatalog.BlueTeam;
+    private int supplyCash = 1000;
+    private string? supplyItem;
+    private IReadOnlyList<string> items = [];
+
+    private List<PlayerDetail> Leaders => [.. Snapshot.Players.OrderByDescending(p => p.Score).ThenBy(p => p.DisplayName)];
+
+    private string AveragePing => Snapshot.Players.Count == 0 ? "—" : Snapshot.Players.Average(p => p.Ping).ToString("0", CultureInfo.InvariantCulture);
+
+    private string UpdatedLabel => Snapshot.UpdatedAt is { } at
+        ? $"Updated {Math.Max(0, (int)(DateTimeOffset.UtcNow - at).TotalSeconds)}s ago"
+        : "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        items = await Rcon.QueryAsync(c => c.GetItemListAsync(), []);
+    }
+
+    private int TeamCount(int team) => Snapshot.Players.Count(p => p.TeamId == team);
+
+    private static bool IsSnd(ServerInfo info) => info.GameMode.Equals("SND", StringComparison.OrdinalIgnoreCase);
+
+    private static string BlueShare(ServerInfo info)
+    {
+        var total = info.Team0Score + info.Team1Score;
+        var share = total == 0 ? 50 : info.Team0Score * 100.0 / total;
+        return Math.Clamp(share, 4, 96).ToString("0.#", CultureInfo.InvariantCulture);
+    }
+
+    private async Task RotateAsync()
+    {
+        if (await Dialogs.ConfirmAsync("Rotate to the next map?", "Everyone is moved to the next map in the rotation right away.", "Rotate"))
+        {
+            await Rcon.RunAsync("Rotating to the next map", c => c.RotateMapAsync());
+        }
+    }
+
+    private async Task ResetSndAsync()
+    {
+        if (await Dialogs.ConfirmAsync("Reset Search & Destroy?", "All players are killed, and cash, kills and scores go back to the start.", "Reset", danger: true))
+        {
+            await Rcon.RunAsync("Match reset", c => c.ResetSndAsync());
+        }
+    }
+
+    private Task PauseAsync() => Rcon.RunAsync("Match paused for 60 s", c => c.PauseMatchAsync(60));
+
+    private Task ResumeAsync() => Rcon.RunAsync("Resuming in 15 s", c => c.PauseMatchAsync(0));
+
+    private Task ClearVehiclesAsync() => Rcon.RunAsync("Empty vehicles cleared", c => c.ClearEmptyVehiclesAsync());
+
+    private Task GiveTeamCashAsync() =>
+        Rcon.RunAsync($"${supplyCash} for team {PavlovCatalog.TeamName(supplyTeam)}", c => c.GiveTeamCashAsync(supplyTeam, supplyCash));
+
+    private Task GiveTeamItemAsync() =>
+        Rcon.RunAsync($"{supplyItem} for team {PavlovCatalog.TeamName(supplyTeam)}", c => c.GiveAllAsync(supplyTeam, supplyItem!.Trim()));
+
+    private async Task ShutdownAsync()
+    {
+        if (await Dialogs.ConfirmAsync("Shut down the server?", "The game stops immediately and every player is disconnected.", "Shut down", danger: true))
+        {
+            await Rcon.RunAsync("Server shutting down", c => c.ShutdownServerAsync(), noReplyMeansSuccess: true);
+        }
+    }
+}

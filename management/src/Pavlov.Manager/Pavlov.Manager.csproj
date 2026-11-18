@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+    <!--
+      The SDK only restores the package with _framework/blazor.web.js when .razor files exist
+      at restore time. The Dockerfile restores from the .csproj alone (for layer caching), so
+      say it explicitly or the published app ships without the Blazor script (404).
+    -->
+    <RequiresAspNetWebAssets>true</RequiresAspNetWebAssets>
+    <UserSecretsId>pavlov-manager</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Pavlov.Rcon\Pavlov.Rcon.csproj" />
+  </ItemGroup>
+
+  <!--
+    Tailwind CSS v4: Styles/app.css -> wwwroot/app.css (generated, don't edit).
+    Runs before every build when its inputs changed. Pass -p:SkipTailwind=true when
+    the CSS is built elsewhere (the Dockerfile builds it in a Node stage).
+  -->
+  <ItemGroup>
+    <TailwindInput Include="Styles/app.css;Components/**/*.razor;Components/**/*.cs" />
+    <Content Remove="package.json;package-lock.json" />
+    <None Include="package.json;package-lock.json" />
+  </ItemGroup>
+
+  <Target Name="TailwindNpmInstall" BeforeTargets="TailwindBuild" Condition="'$(SkipTailwind)' != 'true' And !Exists('node_modules/.bin/tailwindcss')">
+    <Exec Command="npm ci --no-audit --no-fund" />
+  </Target>
+
+  <Target Name="TailwindBuild" BeforeTargets="BeforeBuild" Condition="'$(SkipTailwind)' != 'true'" Inputs="@(TailwindInput)" Outputs="wwwroot/app.css">
+    <Exec Command="npm run --silent build:css" />
+  </Target>
+
+</Project>

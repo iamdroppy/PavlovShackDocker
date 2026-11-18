@@ -1,0 +1,42 @@
+@* RCON can set these switches but not read them back, so the state shown is the last value set from here. *@
+<div class="flex items-center gap-4 py-4">
+    <span class="grid size-10 shrink-0 place-items-center rounded-2xl bg-white/[0.04] text-zinc-400 ring-1 ring-white/[0.06]">
+        <Icon Name="@IconName" Class="size-5" />
+    </span>
+    <div class="min-w-0 flex-1">
+        <p class="text-sm font-semibold text-zinc-100">@Label</p>
+        @if (Description is not null)
+        {
+            <p class="mt-0.5 text-xs leading-snug text-zinc-500">@Description</p>
+        }
+    </div>
+    <div class="segmented shrink-0">
+        <button type="button" class="@(Value == false ? "is-active" : "")" disabled="@Busy" @onclick="() => SetAsync(false)">Off</button>
+        <button type="button" class="@(Value == true ? "is-active !text-signal-400" : "")" disabled="@Busy" @onclick="() => SetAsync(true)">On</button>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Label { get; set; } = "";
+
+    [Parameter] public string? Description { get; set; }
+
+    [Parameter] public string IconName { get; set; } = "server";
+
+    [Parameter, EditorRequired] public Func<bool, Task<bool>> OnSet { get; set; } = default!;
+
+    private bool? Value { get; set; }
+
+    private bool Busy { get; set; }
+
+    private async Task SetAsync(bool value)
+    {
+        Busy = true;
+        if (await OnSet(value))
+        {
+            Value = value;
+        }
+
+        Busy = false;
+    }
+}

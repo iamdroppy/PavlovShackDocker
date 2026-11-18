@@ -1,0 +1,17 @@
+<span class="@($"relative inline-flex size-2.5 {Class}")" aria-hidden="true">
+    @if (Online)
+    {
+        <span class="absolute inset-0 animate-ping-slow rounded-full bg-signal-400/70"></span>
+        <span class="relative size-2.5 rounded-full bg-signal-400 shadow-[0_0_12px] shadow-signal-400"></span>
+    }
+    else
+    {
+        <span class="relative size-2.5 rounded-full bg-rose-400 shadow-[0_0_12px] shadow-rose-500/80"></span>
+    }
+</span>
+
+@code {
+    [Parameter] public bool Online { get; set; }
+
+    [Parameter] public string Class { get; set; } = "";
+}

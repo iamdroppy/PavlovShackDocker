@@ -1,0 +1,193 @@
+@page "/settings"
+@inherits LiveComponent
+@inject RconActions Rcon
+@inject DialogService Dialogs
+
+<PageTitle>Server · Shack Control</PageTitle>
+
+<PageHeader Title="Server" Eyebrow="Settings" Subtitle="Changes apply right away and are saved to Game.ini." />
+
+<div class="grid gap-4 lg:grid-cols-2">
+    <section class="surface p-5 sm:p-6">
+        <h2 class="eyebrow">Identity & access</h2>
+
+        <form class="mt-5" @onsubmit="RenameAsync" @onsubmit:preventDefault>
+            <label for="server-name" class="label">Server name <span class="text-zinc-600">· shown in the server browser</span></label>
+            <div class="flex gap-2">
+                <input id="server-name" class="field" maxlength="35" @bind="serverName" placeholder="@(Snapshot.Info?.ServerName ?? "My Shack server")" />
+                <button type="submit" class="btn btn-soft h-12" disabled="@string.IsNullOrWhiteSpace(serverName)">Save</button>
+            </div>
+            <p class="mt-1.5 text-[0.7rem] text-zinc-600">About 35 characters max. Profanity can hide the server.</p>
+        </form>
+
+        <div class="mt-6">
+            <p class="label">Max players</p>
+            <div class="flex items-center gap-3">
+                <div class="flex items-center rounded-2xl bg-ink-900/80 p-1 ring-1 ring-white/[0.06]">
+                    <button type="button" class="btn btn-ghost btn-icon size-10 rounded-xl" @onclick="() => maxPlayers = Math.Max(1, maxPlayers - 1)" aria-label="Fewer"><Icon Name="minus" Class="size-4" /></button>
+                    <span class="w-12 text-center text-xl font-semibold tabular-nums">@maxPlayers</span>
+                    <button type="button" class="btn btn-ghost btn-icon size-10 rounded-xl" @onclick="() => maxPlayers = Math.Min(24, maxPlayers + 1)" aria-label="More"><Icon Name="plus" Class="size-4" /></button>
+                </div>
+                <button type="button" class="btn btn-soft h-12 flex-1" @onclick="SetMaxPlayersAsync">Apply</button>
+            </div>
+            <p class="mt-1.5 text-[0.7rem] text-zinc-600">Shack servers are recommended at 10 or fewer.</p>
+        </div>
+
+        <div class="mt-6">
+            <label for="pin" class="label">Server PIN</label>
+            <div class="flex gap-2">
+                <input id="pin" type="text" inputmode="numeric" pattern="[1-9][0-9]{0,3}" maxlength="4" class="field font-mono tracking-[0.4em]" placeholder="····" @bind="pin" autocomplete="off" />
+                <button type="button" class="btn btn-soft h-12" disabled="@(!PinValid)" @onclick="SetPinAsync"><Icon Name="lock" Class="size-4" />Lock</button>
+                <button type="button" class="btn btn-ghost h-12" @onclick="ClearPinAsync">Unlock</button>
+            </div>
+            <p class="mt-1.5 text-[0.7rem] text-zinc-600">1–9999 without leading zeros. Unlock removes the PIN.</p>
+        </div>
+
+        <div class="mt-4 divide-y divide-white/[0.05] border-t border-white/[0.05]">
+            <OnOffSetting Label="Whitelist" Description="Only players in whitelist.txt can join." IconName="shield" OnSet='v => Set(v ? "Whitelist on" : "Whitelist off", c => c.EnableWhitelistAsync(v))' />
+        </div>
+    </section>
+
+    <section class="surface p-5 sm:p-6">
+        <h2 class="eyebrow">Gameplay</h2>
+
+        <p class="label mt-5">Ammo</p>
+        <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            @foreach (var ammo in PavlovCatalog.AmmoTypes)
+            {
+                <button type="button" class="@($"rounded-2xl p-3 text-left ring-1 transition ring-inset {(ammoType == ammo.Id ? "bg-signal-400/10 ring-signal-400/40" : "bg-ink-900/60 ring-white/[0.06] hover:bg-white/[0.04]")}")" @onclick="() => SetAmmoAsync(ammo.Id)">
+                    <span class="@($"block text-[0.8rem] font-semibold {(ammoType == ammo.Id ? "text-signal-300" : "text-zinc-100")}")">@ammo.Name</span>
+                    <span class="mt-0.5 block text-[0.68rem] leading-snug text-zinc-500">@ammo.Note</span>
+                </button>
+            }
+        </div>
+
+        <form class="mt-5" @onsubmit="SetTimeLimitAsync" @onsubmit:preventDefault>
+            <label for="time-limit" class="label">Time limit for the current match</label>
+            <div class="flex gap-2">
+                <input id="time-limit" type="number" inputmode="numeric" min="1" class="field tabular-nums" @bind="timeLimit" />
+                <button type="submit" class="btn btn-soft h-12">Set</button>
+            </div>
+        </form>
+
+        <div class="mt-4 divide-y divide-white/[0.05] border-t border-white/[0.05]">
+            <OnOffSetting Label="Competitive mode" Description="SND only, re-applied on map rotation." IconName="trophy" OnSet='v => Set(v ? "Competitive mode on" : "Competitive mode off", c => c.EnableCompModeAsync(v))' />
+            <OnOffSetting Label="Name tags" Description="Names above teammates' heads." IconName="tag" OnSet='v => Set(v ? "Name tags on" : "Name tags off", c => c.ShowNametagsAsync(v))' />
+            <OnOffSetting Label="Bots" Description="Fill empty slots up to the player limit." IconName="bot" OnSet='v => Set(v ? "Bots on" : "Bots off", c => c.SetBotsEnabledAsync(v))' />
+        </div>
+    </section>
+
+    <section class="surface p-5 sm:p-6">
+        <h2 class="eyebrow">Trouble in Terrorist Town</h2>
+        <div class="mt-2 divide-y divide-white/[0.05]">
+            <OnOffSetting Label="Pause round timer" IconName="clock" OnSet='v => Set(v ? "TTT timer paused" : "TTT timer running", c => c.TttPauseTimerAsync(v))' />
+            <OnOffSetting Label="Skin menu mid-round" IconName="shirt" OnSet='v => Set(v ? "Skin menu always on" : "Skin menu normal", c => c.TttAlwaysEnableSkinMenuAsync(v))' />
+        </div>
+        <div class="mt-3 grid grid-cols-2 gap-2">
+            <button type="button" class="btn btn-soft h-12" @onclick="FlushKarmaAsync"><Icon Name="reset" Class="size-4" />Reset karma</button>
+            <div class="segmented flex">
+                <button type="button" @onclick="() => EndTttRoundAsync(PavlovCatalog.BlueTeam)">End · Blue</button>
+                <button type="button" @onclick="() => EndTttRoundAsync(PavlovCatalog.RedTeam)">End · Red</button>
+            </div>
+        </div>
+        <p class="mt-2 text-[0.7rem] text-zinc-600">Reset karma sets everyone back to 1200. End round picks the winning team id.</p>
+    </section>
+
+    <section class="surface p-5 sm:p-6">
+        <h2 class="eyebrow">Advanced</h2>
+        <form class="mt-5" @onsubmit="SetBalanceTableAsync" @onsubmit:preventDefault>
+            <label for="balance" class="label">Balance table <span class="text-zinc-600">· GitHub user/repo/branch</span></label>
+            <div class="flex gap-2">
+                <input id="balance" class="field font-mono text-sm" placeholder="vankruptgames/BalancingTable/main" @bind="balanceTable" autocomplete="off" autocapitalize="off" spellcheck="false" />
+                <button type="submit" class="btn btn-soft h-12" disabled="@string.IsNullOrWhiteSpace(balanceTable)">Set</button>
+            </div>
+        </form>
+        <div class="mt-4 divide-y divide-white/[0.05] border-t border-white/[0.05]">
+            <OnOffSetting Label="Verbose logging" Description="Detailed stats in the logs; much bigger log files." IconName="list" OnSet='v => Set(v ? "Verbose logging on" : "Verbose logging off", c => c.EnableVerboseLoggingAsync(v))' />
+        </div>
+        <p class="mt-3 flex gap-2 rounded-2xl bg-ink-950/40 p-3 text-[0.72rem] leading-relaxed text-zinc-500 ring-1 ring-white/[0.04]">
+            <Icon Name="info" Class="mt-0.5 size-3.5 shrink-0" />
+            RCON can change these switches but can't read them back, so a switch shows the last value set here.
+        </p>
+    </section>
+</div>
+
+@code {
+    private string? serverName;
+    private int maxPlayers = 10;
+    private string? pin;
+    private string? ammoType;
+    private int timeLimit = 60;
+    private string? balanceTable;
+
+    private bool PinValid => int.TryParse(pin, NumberStyles.None, CultureInfo.InvariantCulture, out var value) && value is >= 1 and <= 9999 && !pin!.StartsWith('0');
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        if (Snapshot.Info is { MaxPlayers: > 0 } info)
+        {
+            maxPlayers = info.MaxPlayers;
+        }
+    }
+
+    private Task<bool> Set(string title, Func<PavlovRconClient, Task<RconResponse>> action) => Rcon.RunAsync(title, action);
+
+    private async Task RenameAsync()
+    {
+        var name = serverName!.Trim();
+        if (await Rcon.RunAsync($"Renamed to {name}", c => c.UpdateServerNameAsync(name)))
+        {
+            serverName = null;
+        }
+    }
+
+    private Task SetMaxPlayersAsync() => Rcon.RunAsync($"Max players set to {maxPlayers}", c => c.SetMaxPlayersAsync(maxPlayers));
+
+    private async Task SetPinAsync()
+    {
+        var value = int.Parse(pin!, CultureInfo.InvariantCulture);
+        if (await Rcon.RunAsync("PIN set", c => c.SetPinAsync(value), "Players need it to join."))
+        {
+            pin = null;
+        }
+    }
+
+    private async Task ClearPinAsync()
+    {
+        if (await Dialogs.ConfirmAsync("Remove the PIN?", "Anyone can join the server without a PIN.", "Unlock"))
+        {
+            await Rcon.RunAsync("PIN removed", c => c.SetPinAsync(null));
+        }
+    }
+
+    private async Task SetAmmoAsync(string id)
+    {
+        var type = int.Parse(id, CultureInfo.InvariantCulture);
+        if (await Rcon.RunAsync($"Ammo: {PavlovCatalog.AmmoTypes[type].Name}", c => c.SetLimitedAmmoTypeAsync(type)))
+        {
+            ammoType = id;
+        }
+    }
+
+    private Task SetTimeLimitAsync() => Rcon.RunAsync($"Time limit set to {timeLimit}", c => c.SetTimeLimitAsync(timeLimit));
+
+    private async Task SetBalanceTableAsync()
+    {
+        var repository = balanceTable!.Trim();
+        if (await Rcon.RunAsync("Balance table updated", c => c.SetBalanceTableUrlAsync(repository)))
+        {
+            balanceTable = null;
+        }
+    }
+
+    private async Task FlushKarmaAsync()
+    {
+        if (await Dialogs.ConfirmAsync("Reset everyone's karma?", "Every player's TTT karma goes back to 1200.", "Reset"))
+        {
+            await Rcon.RunAsync("Karma reset to 1200", c => c.TttFlushKarmaAsync());
+        }
+    }
+
+    private Task EndTttRoundAsync(int team) => Rcon.RunAsync($"TTT round ended, {PavlovCatalog.TeamName(team)} wins", c => c.TttEndRoundAsync(team));
+}

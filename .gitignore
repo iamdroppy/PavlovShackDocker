@@ -1,2 +1,7 @@
 .vscode
 .env
+.DS_Store
+management/**/bin/
+management/**/obj/
+management/**/node_modules/
+management/src/Pavlov.Manager/wwwroot/app.css

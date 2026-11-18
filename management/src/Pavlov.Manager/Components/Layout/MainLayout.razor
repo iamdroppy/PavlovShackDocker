@@ -1,0 +1,27 @@
+@inherits LayoutComponentBase
+
+<div class="relative isolate min-h-dvh">
+    <div aria-hidden="true" class="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
+        <div class="absolute inset-0 bg-[radial-gradient(70rem_42rem_at_110%_-20%,rgba(212,255,58,0.085),transparent_60%),radial-gradient(52rem_32rem_at_-25%_-5%,rgba(56,189,248,0.07),transparent_60%)]"></div>
+        <div class="bg-grid absolute inset-0 [mask-image:radial-gradient(ellipse_90%_55%_at_50%_0%,black,transparent)]"></div>
+    </div>
+
+    <Sidebar />
+
+    <div class="lg:pl-72">
+        <TopBar />
+        <main class="mx-auto w-full max-w-6xl px-4 pt-5 pb-[calc(7rem+env(safe-area-inset-bottom))] sm:px-6 lg:px-10 lg:pt-8 lg:pb-16">
+            @Body
+        </main>
+    </div>
+
+    <BottomNav />
+    <ToastHost />
+    <DialogHost />
+</div>
+
+<div id="blazor-error-ui" data-nosnippet>
+    Something went wrong.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">✕</span>
+</div>

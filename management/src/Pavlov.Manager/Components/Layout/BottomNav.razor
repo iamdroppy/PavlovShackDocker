@@ -1,0 +1,19 @@
+@inherits LiveComponent
+
+<nav class="fixed inset-x-0 bottom-0 z-40 border-t border-white/[0.06] bg-ink-950/80 pb-[max(env(safe-area-inset-bottom),0.35rem)] backdrop-blur-2xl lg:hidden" aria-label="Main">
+    <div class="mx-auto grid max-w-lg grid-cols-5 px-1.5">
+        @foreach (var item in NavItems.All)
+        {
+            <NavLink href="@item.Href" Match="item.Match" class="nav-link group flex flex-col items-center gap-1 pt-2 pb-1 text-[0.66rem] font-medium tracking-wide text-zinc-500 transition hover:text-zinc-200">
+                <span class="nav-pill relative grid h-8 w-14 place-items-center rounded-full transition duration-300 group-active:scale-90">
+                    <Icon Name="@item.Icon" Class="size-[1.3rem]" />
+                    @if (item.Href == "players" && Snapshot.Players.Count > 0)
+                    {
+                        <span class="absolute top-0 right-2.5 grid h-4 min-w-4 place-items-center rounded-full bg-signal-400 px-1 text-[0.6rem] font-bold text-ink-950 tabular-nums">@Snapshot.Players.Count</span>
+                    }
+                </span>
+                @item.Label
+            </NavLink>
+        }
+    </div>
+</nav>

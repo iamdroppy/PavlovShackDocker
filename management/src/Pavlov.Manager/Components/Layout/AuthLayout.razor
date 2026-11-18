@@ -1,0 +1,13 @@
+@inherits LayoutComponentBase
+
+<div class="relative isolate flex min-h-dvh flex-col overflow-hidden">
+    <div aria-hidden="true" class="pointer-events-none absolute inset-0 -z-10">
+        <div class="absolute inset-0 bg-[radial-gradient(48rem_32rem_at_50%_-8%,rgba(212,255,58,0.16),transparent_62%),radial-gradient(40rem_28rem_at_100%_100%,rgba(56,189,248,0.08),transparent_60%)]"></div>
+        <div class="bg-grid absolute inset-0 [mask-image:radial-gradient(ellipse_70%_60%_at_50%_20%,black,transparent)]"></div>
+        <svg class="absolute top-1/2 left-1/2 size-[56rem] -translate-x-1/2 -translate-y-[58%] text-white/[0.035]" viewBox="0 0 200 200" fill="none" stroke="currentColor" stroke-width="0.4">
+            <circle cx="100" cy="100" r="40" /><circle cx="100" cy="100" r="64" /><circle cx="100" cy="100" r="88" />
+            <path d="M100 0v200M0 100h200" />
+        </svg>
+    </div>
+    @Body
+</div>

@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Pavlov.Manager/Pavlov.Manager.csproj" />
+    <Project Path="src/Pavlov.Rcon/Pavlov.Rcon.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Pavlov.Rcon.Tests/Pavlov.Rcon.Tests.csproj" />
+  </Folder>
+</Solution>

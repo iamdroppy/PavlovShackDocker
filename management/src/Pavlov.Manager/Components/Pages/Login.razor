@@ -1,0 +1,122 @@
+@page "/login"
+@attribute [AllowAnonymous]
+@attribute [ExcludeFromInteractiveRouting]
+@layout AuthLayout
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Authentication
+@using Microsoft.AspNetCore.Authentication.Cookies
+@inject RconSession Session
+@inject LoginThrottle Throttle
+@inject NavigationManager Navigation
+
+<PageTitle>Sign in · Shack Control</PageTitle>
+
+<main class="flex flex-1 flex-col items-center justify-center px-5 pt-[max(env(safe-area-inset-top),2rem)] pb-[max(env(safe-area-inset-bottom),2rem)]">
+    <div class="w-full max-w-sm animate-rise">
+        <div class="flex flex-col items-center text-center">
+            <BrandMark Class="size-16 rounded-[1.4rem]" />
+            <p class="eyebrow mt-8">Pavlov Shack · Server manager</p>
+            <h1 class="mt-3 text-[2.6rem] leading-[0.95] font-semibold tracking-[-0.045em] text-zinc-50">
+                Take<br /><span class="bg-linear-to-r from-signal-300 to-signal-500 bg-clip-text text-transparent">control.</span>
+            </h1>
+            <p class="mt-4 max-w-[17rem] text-sm leading-relaxed text-zinc-400">Enter the server's RCON password to manage players, maps and settings.</p>
+        </div>
+
+        <EditForm Model="Input" method="post" OnValidSubmit="SignInAsync" FormName="login" class="mt-9" novalidate>
+            <DataAnnotationsValidator />
+
+            @if (Notice is not null)
+            {
+                <div class="@($"mb-4 flex items-start gap-3 rounded-2xl p-3.5 text-sm ring-1 ring-inset {(NoticeIsError ? "bg-rose-500/10 text-rose-200 ring-rose-400/20" : "bg-sky-400/10 text-sky-200 ring-sky-400/20")}")" role="alert">
+                    <Icon Name="@(NoticeIsError ? "alert" : "info")" Class="mt-0.5 size-4 shrink-0" StrokeWidth="2" />
+                    <span>@Notice</span>
+                </div>
+            }
+
+            <label for="password" class="label">RCON password</label>
+            <div class="relative">
+                <span class="pointer-events-none absolute inset-y-0 left-4 grid place-items-center text-zinc-500">
+                    <Icon Name="lock" Class="size-[1.1rem]" />
+                </span>
+                <InputText id="password" type="password" @bind-Value="Input.Password" class="field h-14 pl-11 text-base" autocomplete="current-password" placeholder="••••••••••••" autofocus />
+            </div>
+            <ValidationMessage For="() => Input.Password" />
+
+            <button type="submit" class="btn btn-primary mt-4 h-14 w-full text-[0.95rem]">
+                Sign in
+                <Icon Name="arrow-right" Class="size-[1.1rem]" StrokeWidth="2.2" />
+            </button>
+        </EditForm>
+
+        <p class="mt-8 flex items-center justify-center gap-2 text-xs text-zinc-600">
+            <Icon Name="shield" Class="size-3.5" />
+            Checked against RCON at <span class="font-mono text-zinc-500">@Session.Endpoint</span>
+        </p>
+    </div>
+</main>
+
+@code {
+    [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm] private LoginInput Input { get => field ??= new(); set; }
+
+    [SupplyParameterFromQuery] private string? ReturnUrl { get; set; }
+
+    [SupplyParameterFromQuery] private int? Expired { get; set; }
+
+    private string? Notice { get; set; }
+
+    private bool NoticeIsError { get; set; }
+
+    protected override void OnInitialized()
+    {
+        if (HttpMethods.IsGet(HttpContext.Request.Method) && Expired == 1)
+        {
+            Notice = "Your session ended. Sign in again to keep managing the server.";
+        }
+    }
+
+    private async Task SignInAsync()
+    {
+        var address = HttpContext.Connection.RemoteIpAddress;
+        if (Throttle.RetryAfter(address) is { } wait)
+        {
+            ShowError($"Too many wrong passwords. Try again in {Math.Ceiling(wait.TotalMinutes):0} min.");
+            return;
+        }
+
+        var result = await Session.LoginAsync(Input.Password, HttpContext.RequestAborted);
+        if (!result.Succeeded)
+        {
+            Throttle.RecordFailure(address);
+            ShowError(result.Error ?? "Sign-in failed.");
+            return;
+        }
+
+        Throttle.Reset(address);
+        await HttpContext.SignInAsync(
+            CookieAuthenticationDefaults.AuthenticationScheme,
+            RconAuthenticationStateProvider.CreatePrincipal(result.Generation!),
+            new AuthenticationProperties { IsPersistent = true });
+
+        Navigation.NavigateTo(SafeReturnUrl(ReturnUrl), forceLoad: true);
+    }
+
+    private void ShowError(string message)
+    {
+        Notice = message;
+        NoticeIsError = true;
+        Input.Password = string.Empty;
+    }
+
+    private static string SafeReturnUrl(string? url) =>
+        url is { Length: > 0 } && url.StartsWith('/') && !url.StartsWith("//") && !url.StartsWith("/\\") && !url.StartsWith("/login", StringComparison.OrdinalIgnoreCase)
+            ? url
+            : "/";
+
+    private sealed class LoginInput
+    {
+        [Required(ErrorMessage = "Enter the RCON password.")]
+        public string Password { get; set; } = string.Empty;
+    }
+}

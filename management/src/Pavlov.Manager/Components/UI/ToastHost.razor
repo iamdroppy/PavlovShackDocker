@@ -1,0 +1,45 @@
+@implements IDisposable
+@inject ToastService Toasts
+
+<div class="pointer-events-none fixed inset-x-0 top-0 z-[70] flex flex-col items-center gap-2 px-3 pt-[max(env(safe-area-inset-top),0.75rem)] lg:items-end lg:px-6 lg:pt-6" aria-live="polite">
+    @foreach (var toast in Toasts.Toasts)
+    {
+        <div @key="toast.Id" class="pointer-events-auto flex w-full max-w-sm animate-toast-in items-start gap-3 rounded-2xl border border-white/[0.08] bg-ink-800/95 p-3.5 pr-2 shadow-2xl shadow-black/70 backdrop-blur-2xl">
+            <span class="@($"mt-0.5 grid size-7 shrink-0 place-items-center rounded-full {Tone(toast.Kind)}")">
+                <Icon Name="@IconName(toast.Kind)" Class="size-4" StrokeWidth="2.2" />
+            </span>
+            <div class="min-w-0 flex-1 py-0.5">
+                <p class="text-sm font-semibold text-zinc-50">@toast.Title</p>
+                @if (!string.IsNullOrWhiteSpace(toast.Detail))
+                {
+                    <p class="mt-0.5 text-[0.8rem] leading-snug break-words text-zinc-400">@toast.Detail</p>
+                }
+            </div>
+            <button type="button" class="btn btn-ghost size-8 rounded-xl px-0" aria-label="Dismiss" @onclick="() => Toasts.Dismiss(toast.Id)">
+                <Icon Name="x" Class="size-4" />
+            </button>
+        </div>
+    }
+</div>
+
+@code {
+    protected override void OnInitialized() => Toasts.Changed += OnChanged;
+
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private static string Tone(ToastKind kind) => kind switch
+    {
+        ToastKind.Success => "bg-signal-400 text-ink-950",
+        ToastKind.Error => "bg-rose-500/20 text-rose-300",
+        _ => "bg-sky-400/15 text-sky-300",
+    };
+
+    private static string IconName(ToastKind kind) => kind switch
+    {
+        ToastKind.Success => "check",
+        ToastKind.Error => "alert",
+        _ => "info",
+    };
+
+    public void Dispose() => Toasts.Changed -= OnChanged;
+}

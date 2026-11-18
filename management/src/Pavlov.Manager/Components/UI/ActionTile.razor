@@ -1,0 +1,49 @@
+<button type="button" disabled="@(Disabled || running)" @onclick="RunAsync"
+        class="@($"group relative flex min-h-[7.5rem] cursor-pointer flex-col items-start justify-between overflow-hidden rounded-3xl border p-4 text-left transition duration-300 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-35 sm:p-5 {(Danger ? "border-rose-400/15 bg-rose-500/[0.05] hover:border-rose-400/30 hover:bg-rose-500/[0.09]" : "border-white/[0.07] bg-white/[0.03] hover:border-signal-400/25 hover:bg-white/[0.05]")}")">
+    <span class="@($"grid size-10 place-items-center rounded-2xl ring-1 ring-inset transition duration-300 {(Danger ? "bg-rose-500/12 text-rose-300 ring-rose-400/20" : "bg-white/[0.05] text-zinc-300 ring-white/[0.07] group-hover:bg-signal-400 group-hover:text-ink-950 group-hover:ring-transparent")}")">
+        @if (running)
+        {
+            <Icon Name="refresh" Class="size-5 animate-spin" />
+        }
+        else
+        {
+            <Icon Name="@IconName" Class="size-5" />
+        }
+    </span>
+    <span>
+        <span class="block text-sm font-semibold text-zinc-100">@Title</span>
+        @if (Subtitle is not null)
+        {
+            <span class="mt-0.5 block text-xs text-zinc-500">@Subtitle</span>
+        }
+    </span>
+</button>
+
+@code {
+    private bool running;
+
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+
+    [Parameter] public string? Subtitle { get; set; }
+
+    [Parameter] public string IconName { get; set; } = "play";
+
+    [Parameter] public bool Danger { get; set; }
+
+    [Parameter] public bool Disabled { get; set; }
+
+    [Parameter] public EventCallback OnClick { get; set; }
+
+    private async Task RunAsync()
+    {
+        running = true;
+        try
+        {
+            await OnClick.InvokeAsync();
+        }
+        finally
+        {
+            running = false;
+        }
+    }
+}

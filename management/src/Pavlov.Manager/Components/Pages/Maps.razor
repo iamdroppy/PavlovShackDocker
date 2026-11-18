@@ -1,0 +1,205 @@
+@page "/maps"
+@inherits LiveComponent
+@inject RconActions Rcon
+@inject DialogService Dialogs
+
+<PageTitle>Maps · Shack Control</PageTitle>
+
+<PageHeader Title="Maps" Eyebrow="Rotation" Subtitle="Changes to the rotation are saved to Game.ini.">
+    <Actions>
+        <button type="button" class="btn btn-soft" @onclick="RotateAsync"><Icon Name="next" Class="size-4" />Next map</button>
+    </Actions>
+</PageHeader>
+
+<div class="grid gap-4 lg:grid-cols-[1fr_24rem]">
+    <section class="surface overflow-hidden">
+        <div class="flex items-center justify-between border-b border-white/[0.05] px-5 py-4 sm:px-6">
+            <h2 class="text-sm font-semibold">Map rotation</h2>
+            <span class="chip tabular-nums">@rotation.Count maps</span>
+        </div>
+        @if (loading && rotation.Count == 0)
+        {
+            <div class="space-y-3 p-5">
+                @for (var i = 0; i < 4; i++)
+                {
+                    <div class="h-16 animate-pulse rounded-2xl bg-white/[0.04]"></div>
+                }
+            </div>
+        }
+        else if (rotation.Count == 0)
+        {
+            <EmptyState IconName="map" Title="The rotation is empty" Message="Add a map on the right to build your rotation." />
+        }
+        else
+        {
+            <ol class="divide-y divide-white/[0.05]">
+                @foreach (var (entry, index) in rotation.Select((e, i) => (e, i)))
+                {
+                    var current = IsCurrent(entry);
+                    <li @key="index" class="@($"group flex items-center gap-4 px-5 py-4 transition sm:px-6 {(current ? "bg-signal-400/[0.04]" : "hover:bg-white/[0.02]")}")">
+                        <span class="@($"w-7 font-mono text-sm tabular-nums {(current ? "text-signal-400" : "text-zinc-600")}")">@((index + 1).ToString("00", CultureInfo.InvariantCulture))</span>
+                        <div class="min-w-0 flex-1">
+                            <p class="flex items-center gap-2">
+                                <span class="truncate font-semibold text-zinc-50">@PavlovCatalog.MapName(entry.MapId)</span>
+                                @if (current)
+                                {
+                                    <span class="chip h-5 bg-signal-400/10 px-2 text-[0.6rem] text-signal-300 ring-signal-400/20"><StatusDot Online="true" Class="scale-[0.6]" />Live</span>
+                                }
+                            </p>
+                            <p class="mt-0.5 truncate text-xs text-zinc-500"><span class="font-mono">@entry.MapId</span> · @PavlovCatalog.GameModeName(entry.GameMode)</p>
+                        </div>
+                        <span class="chip hidden font-mono sm:inline-flex">@entry.GameMode</span>
+                        <button type="button" class="btn btn-soft btn-sm" @onclick="() => PlayNowAsync(entry.MapId, entry.GameMode)" aria-label="Play @entry.MapId now"><Icon Name="play" Class="size-3.5" /><span class="hidden sm:inline">Play</span></button>
+                        <button type="button" class="btn btn-ghost btn-icon size-9 rounded-xl" @onclick="() => RemoveAsync(entry)" aria-label="Remove @entry.MapId from the rotation"><Icon Name="trash" Class="size-4" /></button>
+                    </li>
+                }
+            </ol>
+        }
+    </section>
+
+    <div class="space-y-4">
+        <form class="surface p-5" @onsubmit="AddAsync" @onsubmit:preventDefault>
+            <h2 class="text-sm font-semibold">Add a map</h2>
+            <p class="mt-1 text-xs leading-relaxed text-zinc-500">Stock map id, or a mod.io map as <span class="font-mono text-zinc-400">UGC&lt;id&gt;</span>. Shack downloads mod.io maps by itself.</p>
+
+            <label for="map-id" class="label mt-4">Map</label>
+            <input id="map-id" list="stock-maps" class="field font-mono text-sm" placeholder="datacenter or UGC2773760" @bind="mapId" autocomplete="off" autocapitalize="off" spellcheck="false" />
+            <datalist id="stock-maps">
+                @foreach (var map in PavlovCatalog.StockMaps)
+                {
+                    <option value="@map.Id">@map.Name@(map.Note is null ? "" : $" · {map.Note}")</option>
+                }
+            </datalist>
+
+            <label for="game-mode" class="label mt-3">Game mode</label>
+            <select id="game-mode" class="field" @bind="gameMode">
+                @foreach (var mode in PavlovCatalog.GameModes)
+                {
+                    <option value="@mode.Id">@mode.Name (@mode.Id)</option>
+                }
+            </select>
+
+            <div class="mt-4 grid grid-cols-2 gap-2">
+                <button type="submit" class="btn btn-primary h-12" disabled="@string.IsNullOrWhiteSpace(mapId)"><Icon Name="plus" Class="size-4" StrokeWidth="2.2" />Add</button>
+                <button type="button" class="btn btn-soft h-12" disabled="@string.IsNullOrWhiteSpace(mapId)" @onclick="() => PlayNowAsync(mapId!.Trim(), gameMode)"><Icon Name="play" Class="size-4" />Play now</button>
+            </div>
+        </form>
+
+        <section class="surface p-5">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-sm font-semibold">mod.io mods</h2>
+                    <p class="mt-1 text-xs text-zinc-500">Extra content the server loads.</p>
+                </div>
+                <span class="grid size-10 place-items-center rounded-2xl bg-white/[0.05] text-zinc-300 ring-1 ring-white/[0.07]"><Icon Name="mods" Class="size-5" /></span>
+            </div>
+            <form class="mt-4 flex gap-2" @onsubmit="AddModAsync" @onsubmit:preventDefault>
+                <input class="field font-mono text-sm" placeholder="UGC3267926" @bind="modId" aria-label="mod.io id" autocomplete="off" autocapitalize="off" spellcheck="false" />
+                <button type="submit" class="btn btn-soft h-12" disabled="@string.IsNullOrWhiteSpace(modId)">Add</button>
+            </form>
+            @if (mods.Count == 0)
+            {
+                <p class="mt-4 rounded-2xl bg-ink-950/40 px-4 py-3 text-xs text-zinc-500 ring-1 ring-white/[0.04]">No mods installed.</p>
+            }
+            else
+            {
+                <ul class="mt-3 space-y-1.5">
+                    @foreach (var mod in mods)
+                    {
+                        <li @key="mod" class="flex items-center gap-3 rounded-2xl bg-ink-950/40 py-1.5 pr-1.5 pl-4 ring-1 ring-white/[0.04]">
+                            <span class="min-w-0 flex-1 truncate font-mono text-sm">@mod</span>
+                            <button type="button" class="btn btn-ghost btn-icon size-9 rounded-xl" @onclick="() => RemoveModAsync(mod)" aria-label="Remove @mod"><Icon Name="trash" Class="size-4" /></button>
+                        </li>
+                    }
+                </ul>
+                <button type="button" class="btn btn-danger btn-sm mt-3 w-full" @onclick="ClearModsAsync">Remove all mods</button>
+            }
+        </section>
+    </div>
+</div>
+
+@code {
+    private IReadOnlyList<MapRotationEntry> rotation = [];
+    private IReadOnlyList<string> mods = [];
+    private bool loading = true;
+    private string? mapId;
+    private string gameMode = "TDM";
+    private string? modId;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        loading = true;
+        rotation = await Rcon.QueryAsync(c => c.GetMapListAsync(), rotation);
+        mods = await Rcon.QueryAsync(c => c.GetUgcModListAsync(), mods);
+        loading = false;
+    }
+
+    private bool IsCurrent(MapRotationEntry entry) =>
+        Snapshot.Info is { } info
+        && entry.MapId.Equals(info.MapLabel, StringComparison.OrdinalIgnoreCase)
+        && entry.GameMode.Equals(info.GameMode, StringComparison.OrdinalIgnoreCase);
+
+    private async Task RotateAsync()
+    {
+        if (await Dialogs.ConfirmAsync("Rotate to the next map?", "Everyone is moved to the next map in the rotation right away.", "Rotate"))
+        {
+            await Rcon.RunAsync("Rotating to the next map", c => c.RotateMapAsync());
+        }
+    }
+
+    private async Task PlayNowAsync(string map, string mode)
+    {
+        if (await Dialogs.ConfirmAsync($"Switch to {PavlovCatalog.MapName(map)}?", $"The server loads {map} in {PavlovCatalog.GameModeName(mode)} right now. Players stay connected.", "Switch"))
+        {
+            await Rcon.RunAsync($"Switching to {PavlovCatalog.MapName(map)}", c => c.SwitchMapAsync(map, mode), "Commands pause for a few seconds while the map loads.");
+        }
+    }
+
+    private async Task AddAsync()
+    {
+        var map = mapId!.Trim();
+        if (await Rcon.RunAsync($"{PavlovCatalog.MapName(map)} added to the rotation", c => c.AddMapRotationAsync(map, gameMode)))
+        {
+            mapId = null;
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task RemoveAsync(MapRotationEntry entry)
+    {
+        if (await Dialogs.ConfirmAsync($"Remove {PavlovCatalog.MapName(entry.MapId)}?", $"Removes {entry.MapId} ({entry.GameMode}) from the rotation.", "Remove", danger: true))
+        {
+            await Rcon.RunAsync($"{PavlovCatalog.MapName(entry.MapId)} removed", c => c.RemoveMapRotationAsync(entry.MapId, entry.GameMode));
+            await LoadAsync();
+        }
+    }
+
+    private async Task AddModAsync()
+    {
+        var id = PavlovRconCommands.NormalizeUgc(modId!);
+        if (await Rcon.RunAsync($"Added {id}", c => c.UgcAddModAsync(id)))
+        {
+            modId = null;
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task RemoveModAsync(string id)
+    {
+        await Rcon.RunAsync($"Removed {id}", c => c.UgcRemoveModAsync(id));
+        await LoadAsync();
+    }
+
+    private async Task ClearModsAsync()
+    {
+        if (await Dialogs.ConfirmAsync("Remove every mod?", "The server stops loading all mod.io mods.", "Remove all", danger: true))
+        {
+            await Rcon.RunAsync("All mods removed", c => c.UgcClearModListAsync());
+            await LoadAsync();
+        }
+    }
+}

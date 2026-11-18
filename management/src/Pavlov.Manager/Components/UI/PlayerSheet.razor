@@ -1,0 +1,317 @@
+@inject RconActions Rcon
+@inject DialogService Dialogs
+
+<Sheet Open="Open" OpenChanged="OpenChanged" Title="@(Player?.DisplayName ?? "Player")" Width="sm:max-w-xl">
+    <Header>
+        @if (Player is { } header)
+        {
+            <div class="flex items-center gap-4">
+                <Avatar Name="@header.DisplayName" TeamId="header.TeamId" Dead="header.Dead" Class="size-14 rounded-[1.1rem] text-base" />
+                <div class="min-w-0">
+                    <h2 class="truncate text-xl font-semibold tracking-tight">@header.DisplayName</h2>
+                    <p class="truncate font-mono text-xs text-zinc-500">@header.UniqueId</p>
+                    <div class="mt-2 flex flex-wrap gap-1.5">
+                        <span class="@($"chip {TeamChip(header.TeamId)}")">@PavlovCatalog.TeamName(header.TeamId)</span>
+                        @if (IsModerator)
+                        {
+                            <span class="chip bg-signal-400/10 text-signal-300 ring-signal-400/20"><Icon Name="shield" Class="size-3" StrokeWidth="2.2" />Moderator</span>
+                        }
+                        @if (header.Gag)
+                        {
+                            <span class="chip bg-amber-400/10 text-amber-300 ring-amber-400/20"><Icon Name="mic-off" Class="size-3" StrokeWidth="2.2" />Gagged</span>
+                        }
+                        @if (Left)
+                        {
+                            <span class="chip bg-rose-500/10 text-rose-300 ring-rose-400/20">Left the server</span>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    </Header>
+    <ChildContent>
+        @if (Player is { } player)
+        {
+            <dl class="grid grid-cols-4 gap-2 rounded-3xl bg-ink-950/50 p-2 ring-1 ring-white/[0.05]">
+                <div class="rounded-2xl p-2.5 text-center"><dt class="eyebrow !text-[0.58rem]">K/D/A</dt><dd class="mt-1 font-mono text-sm font-semibold">@player.KDA</dd></div>
+                <div class="rounded-2xl p-2.5 text-center"><dt class="eyebrow !text-[0.58rem]">Score</dt><dd class="mt-1 text-sm font-semibold tabular-nums">@player.Score</dd></div>
+                <div class="rounded-2xl p-2.5 text-center"><dt class="eyebrow !text-[0.58rem]">Cash</dt><dd class="mt-1 text-sm font-semibold tabular-nums">$@player.Cash</dd></div>
+                <div class="rounded-2xl p-2.5 text-center"><dt class="eyebrow !text-[0.58rem]">Ping</dt><dd class="@($"mt-1 text-sm font-semibold tabular-nums {PingTone(player.Ping)}")">@player.Ping.ToString("0", CultureInfo.InvariantCulture)</dd></div>
+            </dl>
+
+            <div class="mt-4 space-y-3">
+                <section class="rounded-3xl bg-white/[0.025] p-4 ring-1 ring-white/[0.05]">
+                    <h3 class="eyebrow mb-3">Moderate</h3>
+                    <div class="grid grid-cols-4 gap-2">
+                        <button type="button" class="btn btn-soft h-auto flex-col gap-1.5 py-3 text-xs" disabled="@Left" @onclick="KickAsync"><Icon Name="kick" Class="size-5" />Kick</button>
+                        <button type="button" class="btn btn-danger h-auto flex-col gap-1.5 py-3 text-xs" @onclick="BanAsync"><Icon Name="ban" Class="size-5" />Ban</button>
+                        <button type="button" class="btn btn-soft h-auto flex-col gap-1.5 py-3 text-xs" disabled="@(Left || player.Dead)" @onclick="KillAsync"><Icon Name="crosshair" Class="size-5" />Kill</button>
+                        <button type="button" class="btn btn-soft h-auto flex-col gap-1.5 py-3 text-xs" disabled="@Left" @onclick="ToggleGagAsync"><Icon Name="@(player.Gag ? "mic" : "mic-off")" Class="size-5" />@(player.Gag ? "Ungag" : "Gag")</button>
+                    </div>
+                    <div class="mt-3 flex items-center gap-2">
+                        <div class="segmented flex flex-1">
+                            @foreach (var damage in SlapOptions)
+                            {
+                                <button type="button" class="@(slapDamage == damage ? "is-active" : "")" @onclick="() => slapDamage = damage">@damage</button>
+                            }
+                        </div>
+                        <button type="button" class="btn btn-soft h-11" disabled="@(Left || player.Dead)" @onclick="SlapAsync"><Icon Name="zap" Class="size-4" />Slap</button>
+                    </div>
+                </section>
+
+                <section class="rounded-3xl bg-white/[0.025] p-4 ring-1 ring-white/[0.05]">
+                    <h3 class="eyebrow mb-3">Economy</h3>
+                    <div class="flex gap-2">
+                        <div class="relative flex-1">
+                            <span class="pointer-events-none absolute inset-y-0 left-4 grid place-items-center text-sm text-zinc-500">$</span>
+                            <input type="number" inputmode="numeric" min="0" max="16000" class="field pl-8 tabular-nums" @bind="cash" aria-label="Cash amount" />
+                        </div>
+                        <button type="button" class="btn btn-soft h-12" disabled="@Left" @onclick="GiveCashAsync">Give</button>
+                        <button type="button" class="btn btn-soft h-12" disabled="@Left" @onclick="SetCashAsync">Set</button>
+                    </div>
+                    <div class="mt-2 flex gap-1.5 overflow-x-auto scrollbar-none">
+                        @foreach (var amount in CashPresets)
+                        {
+                            <button type="button" class="chip shrink-0 cursor-pointer hover:bg-white/10" @onclick="() => cash = amount">$@amount.ToString("N0", CultureInfo.InvariantCulture)</button>
+                        }
+                    </div>
+                </section>
+
+                <section class="rounded-3xl bg-white/[0.025] p-4 ring-1 ring-white/[0.05]">
+                    <h3 class="eyebrow mb-3">Loadout</h3>
+                    <div class="flex gap-2">
+                        <input list="sheet-items" class="field flex-1" @bind="itemId" placeholder="Item, e.g. ak47" aria-label="Item id" autocomplete="off" />
+                        <button type="button" class="btn btn-soft h-12" disabled="@(Left || string.IsNullOrWhiteSpace(itemId))" @onclick="GiveItemAsync"><Icon Name="gift" Class="size-4" />Give</button>
+                    </div>
+                    <datalist id="sheet-items">
+                        @foreach (var item in items)
+                        {
+                            <option value="@item"></option>
+                        }
+                    </datalist>
+                    <div class="mt-2 flex gap-2">
+                        <select class="field flex-1" @bind="skinId" aria-label="Skin">
+                            @foreach (var skin in PavlovCatalog.Skins)
+                            {
+                                <option value="@skin">@skin</option>
+                            }
+                        </select>
+                        <button type="button" class="btn btn-soft h-12" disabled="@Left" @onclick="SetSkinAsync"><Icon Name="shirt" Class="size-4" />Skin</button>
+                    </div>
+                </section>
+
+                <section class="rounded-3xl bg-white/[0.025] p-4 ring-1 ring-white/[0.05]">
+                    <h3 class="eyebrow mb-3">Position & team</h3>
+                    <div class="flex gap-2">
+                        <select class="field flex-1" @bind="teleportTarget" aria-label="Teleport to player">
+                            <option value="">Teleport to…</option>
+                            @foreach (var other in Others.Where(o => o.UniqueId != player.UniqueId && !o.Dead))
+                            {
+                                <option value="@other.UniqueId">@other.DisplayName</option>
+                            }
+                        </select>
+                        <button type="button" class="btn btn-soft h-12" disabled="@(Left || player.Dead || string.IsNullOrEmpty(teleportTarget))" @onclick="TeleportAsync"><Icon Name="teleport" Class="size-4" />Go</button>
+                    </div>
+                    <button type="button" class="btn btn-soft mt-2 h-12 w-full" disabled="@Left" @onclick="SwitchTeamAsync">
+                        <Icon Name="swap" Class="size-4" />
+                        Move to @PavlovCatalog.TeamName(OtherTeam(player.TeamId)) team
+                    </button>
+                </section>
+
+                <section class="rounded-3xl bg-white/[0.025] p-4 ring-1 ring-white/[0.05]">
+                    <h3 class="eyebrow mb-3">Permissions</h3>
+                    @if (IsModerator)
+                    {
+                        <button type="button" class="btn btn-soft h-12 w-full" @onclick="RemoveModeratorAsync"><Icon Name="shield-off" Class="size-4" />Remove moderator</button>
+                    }
+                    else
+                    {
+                        <button type="button" class="btn btn-soft h-12 w-full" @onclick="AddModeratorAsync"><Icon Name="shield" Class="size-4" />Make moderator</button>
+                    }
+                    <p class="mt-2 text-xs leading-relaxed text-zinc-500">Moderators get the in-game admin menu and can't be vote-kicked.</p>
+                </section>
+
+                <details class="group rounded-3xl bg-white/[0.025] ring-1 ring-white/[0.05]" open="@IsTtt">
+                    <summary class="flex cursor-pointer list-none items-center justify-between p-4">
+                        <span class="eyebrow">Trouble in Terrorist Town</span>
+                        <Icon Name="chevron-down" Class="size-4 text-zinc-500 transition group-open:rotate-180" />
+                    </summary>
+                    <div class="space-y-2 px-4 pb-4">
+                        <div class="flex gap-2">
+                            <select class="field flex-1" @bind="tttRole" aria-label="TTT role">
+                                @foreach (var role in PavlovCatalog.TttRoles)
+                                {
+                                    <option value="@role">@role</option>
+                                }
+                            </select>
+                            <button type="button" class="btn btn-soft h-12" disabled="@Left" @onclick="SetRoleAsync">Set role</button>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div class="flex gap-2">
+                                <input type="number" inputmode="numeric" class="field min-w-0 flex-1 tabular-nums" @bind="karma" aria-label="Karma" />
+                                <button type="button" class="btn btn-soft h-12 px-3" disabled="@Left" @onclick="SetKarmaAsync">Karma</button>
+                            </div>
+                            <div class="flex gap-2">
+                                <input type="number" inputmode="numeric" min="1" class="field min-w-0 flex-1 tabular-nums" @bind="credits" aria-label="Credits" />
+                                <button type="button" class="btn btn-soft h-12 px-3" disabled="@Left" @onclick="GiveCreditsAsync">Credits</button>
+                            </div>
+                        </div>
+                    </div>
+                </details>
+            </div>
+        }
+    </ChildContent>
+</Sheet>
+
+@code {
+    private static readonly int[] SlapOptions = [10, 25, 50, 100];
+    private static readonly int[] CashPresets = [500, 1000, 2500, 5000, 10000, 16000];
+
+    private int slapDamage = 25;
+    private int cash = 1000;
+    private string? itemId;
+    private string skinId = PavlovCatalog.Skins[0];
+    private string? teleportTarget;
+    private string tttRole = PavlovCatalog.TttRoles[0];
+    private int karma = 1200;
+    private int credits = 1;
+    private IReadOnlyList<string> items = [];
+    private IReadOnlyList<string> moderators = [];
+    private bool loadedFor;
+
+    [Parameter] public PlayerDetail? Player { get; set; }
+
+    [Parameter] public bool Left { get; set; }
+
+    [Parameter] public IReadOnlyList<PlayerDetail> Others { get; set; } = [];
+
+    [Parameter] public string GameMode { get; set; } = "";
+
+    [Parameter] public bool Open { get; set; }
+
+    [Parameter] public EventCallback<bool> OpenChanged { get; set; }
+
+    private bool IsModerator => Player is { } p && moderators.Contains(p.UniqueId, StringComparer.OrdinalIgnoreCase);
+
+    private bool IsTtt => GameMode.StartsWith("TTT", StringComparison.OrdinalIgnoreCase);
+
+    private string Id => Player!.UniqueId;
+
+    private string Name => Player!.DisplayName;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Open && !loadedFor)
+        {
+            loadedFor = true;
+            if (items.Count == 0)
+            {
+                items = await Rcon.QueryAsync(c => c.GetItemListAsync(), []);
+            }
+
+            moderators = await Rcon.QueryAsync(c => c.GetModeratorListAsync(), []);
+        }
+        else if (!Open)
+        {
+            loadedFor = false;
+            teleportTarget = null;
+        }
+    }
+
+    private static int OtherTeam(int team) => team == PavlovCatalog.BlueTeam ? PavlovCatalog.RedTeam : PavlovCatalog.BlueTeam;
+
+    private static string TeamChip(int team) => team switch
+    {
+        PavlovCatalog.BlueTeam => "bg-team-blue/10 text-team-blue ring-team-blue/25",
+        PavlovCatalog.RedTeam => "bg-team-red/10 text-team-red ring-team-red/25",
+        _ => "",
+    };
+
+    internal static string PingTone(double ping) => ping switch
+    {
+        < 70 => "text-signal-400",
+        < 140 => "text-amber-300",
+        _ => "text-rose-300",
+    };
+
+    private Task CloseAsync() => OpenChanged.InvokeAsync(false);
+
+    private async Task KickAsync()
+    {
+        if (await Dialogs.ConfirmAsync($"Kick {Name}?", "They're removed from the server but can join again.", "Kick", danger: true)
+            && await Rcon.RunAsync($"Kicked {Name}", c => c.KickAsync(Id)))
+        {
+            await CloseAsync();
+        }
+    }
+
+    private async Task BanAsync()
+    {
+        if (await Dialogs.ConfirmAsync($"Ban {Name}?", "They're kicked and permanently banned. You can unban them from the Bans tab.", "Ban", danger: true)
+            && await Rcon.RunAsync($"Banned {Name}", c => c.BanAsync(Id)))
+        {
+            await CloseAsync();
+        }
+    }
+
+    private async Task KillAsync()
+    {
+        if (await Dialogs.ConfirmAsync($"Kill {Name}?", "Their character dies right away.", "Kill", danger: true))
+        {
+            await Rcon.RunAsync($"Killed {Name}", c => c.KillAsync(Id));
+        }
+    }
+
+    private Task ToggleGagAsync()
+    {
+        var gag = !Player!.Gag;
+        return Rcon.RunAsync(gag ? $"{Name} is gagged" : $"{Name} can talk again", c => c.GagAsync(Id, gag));
+    }
+
+    private Task SlapAsync() => Rcon.RunAsync($"Slapped {Name} for {slapDamage}", c => c.SlapAsync(Id, slapDamage));
+
+    private Task GiveCashAsync() => Rcon.RunAsync($"Gave ${cash} to {Name}", c => c.GiveCashAsync(Id, cash));
+
+    private Task SetCashAsync() => Rcon.RunAsync($"{Name} now has ${Math.Clamp(cash, 0, 16000)}", c => c.SetCashAsync(Id, cash));
+
+    private Task GiveItemAsync() => Rcon.RunAsync($"Gave {itemId} to {Name}", c => c.GiveItemAsync(Id, itemId!.Trim()));
+
+    private Task SetSkinAsync() => Rcon.RunAsync($"{Name} is wearing {skinId}", c => c.SetPlayerSkinAsync(Id, skinId), "Until they leave, switch team or the map changes.");
+
+    private Task TeleportAsync()
+    {
+        var target = Others.FirstOrDefault(o => o.UniqueId == teleportTarget)?.DisplayName ?? teleportTarget;
+        return Rcon.RunAsync($"Teleported {Name} to {target}", c => c.TeleportAsync(Id, teleportTarget!));
+    }
+
+    private async Task SwitchTeamAsync()
+    {
+        var team = OtherTeam(Player!.TeamId);
+        if (await Dialogs.ConfirmAsync($"Move {Name} to {PavlovCatalog.TeamName(team)}?", "They die and lose their cash, score and gear.", "Move"))
+        {
+            await Rcon.RunAsync($"{Name} moved to {PavlovCatalog.TeamName(team)}", c => c.SwitchTeamAsync(Id, team));
+        }
+    }
+
+    private async Task AddModeratorAsync()
+    {
+        if (await Rcon.RunAsync($"{Name} is now a moderator", c => c.AddModeratorAsync(Id)))
+        {
+            moderators = [.. moderators, Id];
+        }
+    }
+
+    private async Task RemoveModeratorAsync()
+    {
+        if (await Rcon.RunAsync($"{Name} is no longer a moderator", c => c.RemoveModeratorAsync(Id)))
+        {
+            moderators = [.. moderators.Where(m => !m.Equals(Id, StringComparison.OrdinalIgnoreCase))];
+        }
+    }
+
+    private Task SetRoleAsync() => Rcon.RunAsync($"{Name} is now {tttRole}", c => c.TttSetRoleAsync(Id, tttRole));
+
+    private Task SetKarmaAsync() => Rcon.RunAsync($"{Name}'s karma set to {karma}", c => c.TttSetKarmaAsync(Id, karma));
+
+    private Task GiveCreditsAsync() => Rcon.RunAsync($"Gave {credits} credits to {Name}", c => c.TttGiveCreditsAsync(Id, credits));
+}

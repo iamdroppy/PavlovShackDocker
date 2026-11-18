@@ -10,6 +10,9 @@ A Pavlov Shack (Quest) dedicated server in a container, built from the
   `chmod`, `Saved/maps`). It then applies your config and starts `PavlovServer.sh`.
 - `compose.yaml`: ports, volumes and settings.
 - `config/`: your `Game.ini`, plus optional `mods.txt`, `blacklist.txt` and `whitelist.txt`.
+- `management/`: **Shack Control**, a mobile-first web manager for the server over RCON (Blazor,
+  .NET 10). It runs as the `manager` service at <http://localhost:8080>. See
+  [management/README.md](management/README.md).
 
 ## Quick start
 
@@ -20,7 +23,7 @@ cp .env.example .env
 1. Get a server key. In game, go to **Settings > General > Server Key Generator** and get a
    6-digit PIN. Exchange the PIN for a key at <https://api-key.vankrupt.net/>, then put the
    key in `.env` as `SERVER_KEY=`. Without a key the server is not listed.
-2. Set `RCON_PASSWORD` in `.env` if you want RCON.
+2. Set `RCON_PASSWORD` in `.env`. It turns RCON on and is the password for the web manager.
 3. Edit `config/Game.ini`. Set the server name, max players and map rotation.
 4. Start the server:
 
@@ -33,6 +36,7 @@ podman compose logs -f
 ```
 
 The first start downloads the server (a few GB). Later starts only download updates.
+Then open <http://localhost:8080> and sign in with `RCON_PASSWORD` to manage the server.
 
 ## Day to day
 
@@ -64,6 +68,7 @@ Open or forward these ports on your firewall or router:
 | 7777 (`GAME_PORT`) | UDP + TCP | Game. TCP lets Shack clients download mod.io maps |
 | 8177 (`GAME_PORT` + 400) | UDP + TCP | Server status helper |
 | 9100 (`RCON_PORT`) | TCP | RCON. Bound to 127.0.0.1 unless `RCON_BIND=0.0.0.0` |
+| 8080 (`MANAGER_PORT`) | TCP | Web manager. Bound to 127.0.0.1 unless `MANAGER_BIND=0.0.0.0` |
 
 To change the game port, set `GAME_PORT` and set `QUERY_PORT` to `GAME_PORT + 400`. The
 container refuses to start if they don't match. For several servers on one host, copy the
@@ -85,8 +90,15 @@ folder and give each copy its own `GAME_PORT`, `QUERY_PORT` and `RCON_PORT`. Use
 - **libc++.** The wiki says to delete `/usr/lib/x86_64-linux-gnu/libc++.so`. On Ubuntu 24.04
   that file is a linker script, and the Shack server fails to start without a file of that
   name. The image replaces it with a symlink to `libc++.so.1` instead.
-- **Harmless log noise.** Expect `LoadSubsystemModule([STEAM]) failed` (Shack uses Oculus, not
-  Steam), OpenXR-Loader errors and `xdg-user-dir: not found`.
+- **When it's ready.** `Starting Server Status Helper on Port 8177` means the map has loaded.
+  SND then repeats `SND: Waiting for players`. TDM, DM and similar modes log
+  `Match State Changed from WaitingToStart to InProgress` and then stay quiet.
+- **Harmless log noise.** Expect these:
+  - about 130 `LogStreaming: Error: Couldn't find file for package` lines (buy-menu
+    thumbnails and Quest controller models the server build doesn't include)
+  - `LoadSubsystemModule([STEAM]) failed` (Shack uses Oculus, not Steam)
+  - OpenXR-Loader errors and `xdg-user-dir: not found`
+  - a MOTD `HTTP Error 404`
 - **Server key line.** The wiki's key step uses `ServerKey=`, but its option list calls it
   `ApiKey`. With `SERVER_KEY` set, the entrypoint writes both lines into `Game.ini`.
 - `compose.yaml` works with `podman compose` (which uses `docker-compose` or `podman-compose`).

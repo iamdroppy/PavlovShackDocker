@@ -1,0 +1,220 @@
+@import "tailwindcss" source(none);
+
+@source "../Components";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
+
+  --color-ink-950: #07080a;
+  --color-ink-900: #0b0d11;
+  --color-ink-850: #0f1217;
+  --color-ink-800: #141820;
+  --color-ink-700: #1d222c;
+  --color-ink-600: #2a313d;
+  --color-ink-500: #3a4352;
+
+  --color-signal-200: #f0ffc2;
+  --color-signal-300: #e6ff8a;
+  --color-signal-400: #d4ff3a;
+  --color-signal-500: #b8e600;
+  --color-signal-600: #8fb300;
+
+  --color-team-blue: #38bdf8;
+  --color-team-red: #fb7185;
+
+  --ease-snap: cubic-bezier(0.2, 0.9, 0.25, 1);
+
+  --animate-sheet-up: sheet-up 0.38s var(--ease-snap) both;
+  --animate-pop-in: pop-in 0.28s var(--ease-snap) both;
+  --animate-fade-in: fade-in 0.2s ease-out both;
+  --animate-toast-in: toast-in 0.4s var(--ease-snap) both;
+  --animate-rise: rise 0.5s var(--ease-snap) both;
+  --animate-ping-slow: ping-slow 2.2s cubic-bezier(0, 0, 0.2, 1) infinite;
+
+  @keyframes sheet-up {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+  @keyframes pop-in {
+    from { opacity: 0; transform: translateY(12px) scale(0.97); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes toast-in {
+    from { opacity: 0; transform: translateY(-10px) scale(0.98); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes ping-slow {
+    75%, 100% { transform: scale(2.4); opacity: 0; }
+  }
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+    -webkit-tap-highlight-color: transparent;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    @apply min-h-dvh bg-ink-950 font-sans text-zinc-100 antialiased;
+    font-feature-settings: "cv11", "ss01";
+  }
+
+  ::selection {
+    @apply bg-signal-400 text-ink-950;
+  }
+
+  h1:focus {
+    outline: none;
+  }
+
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
+
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-signal-400;
+  }
+}
+
+@layer components {
+  .surface {
+    @apply rounded-3xl border border-white/[0.07] bg-white/[0.03] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)] backdrop-blur-xl;
+  }
+
+  .surface-strong {
+    @apply rounded-3xl border border-white/[0.08] bg-ink-850/90 shadow-2xl shadow-black/60 backdrop-blur-2xl;
+  }
+
+  .eyebrow {
+    @apply text-[0.68rem] font-semibold tracking-[0.18em] text-zinc-500 uppercase;
+  }
+
+  .btn {
+    @apply inline-flex h-11 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-2xl px-4 text-sm font-semibold whitespace-nowrap transition duration-200 select-none active:scale-[0.97] disabled:pointer-events-none disabled:opacity-40;
+  }
+
+  .btn-sm {
+    @apply h-9 rounded-xl px-3 text-[0.8rem];
+  }
+
+  .btn-primary {
+    @apply bg-signal-400 text-ink-950 shadow-[0_10px_30px_-12px] shadow-signal-400/70 hover:bg-signal-300;
+  }
+
+  .btn-soft {
+    @apply bg-white/[0.06] text-zinc-100 ring-1 ring-white/[0.06] ring-inset hover:bg-white/[0.1];
+  }
+
+  .btn-ghost {
+    @apply text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-100;
+  }
+
+  .btn-danger {
+    @apply bg-rose-500/12 text-rose-300 ring-1 ring-rose-400/20 ring-inset hover:bg-rose-500/20 hover:text-rose-200;
+  }
+
+  .btn-icon {
+    @apply size-11 px-0;
+  }
+
+  .field {
+    @apply h-12 w-full rounded-2xl border border-white/[0.08] bg-ink-900/80 px-4 text-[0.95rem] text-zinc-100 transition placeholder:text-zinc-600 focus:border-signal-400/60 focus:bg-ink-900 focus:ring-4 focus:ring-signal-400/10 focus:outline-none;
+  }
+
+  select.field {
+    @apply cursor-pointer appearance-none bg-[length:1.1rem] bg-[right_0.9rem_center] bg-no-repeat pr-10;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  }
+
+  .label {
+    @apply mb-1.5 block text-xs font-medium text-zinc-400;
+  }
+
+  .chip {
+    @apply inline-flex h-7 items-center gap-1.5 rounded-full bg-white/[0.06] px-2.5 text-[0.72rem] font-semibold text-zinc-300 ring-1 ring-white/[0.06] ring-inset;
+  }
+
+  .segmented {
+    @apply inline-flex rounded-2xl bg-ink-900/80 p-1 ring-1 ring-white/[0.06] ring-inset;
+  }
+
+  .segmented > button,
+  .segmented > a {
+    @apply flex h-9 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-xl px-3.5 text-[0.8rem] font-semibold text-zinc-400 transition hover:text-zinc-100;
+  }
+
+  .segmented > .is-active {
+    @apply bg-white/[0.09] text-zinc-50 shadow-sm shadow-black/40;
+  }
+
+  .bg-grid {
+    background-image:
+      linear-gradient(to right, rgb(255 255 255 / 0.035) 1px, transparent 1px),
+      linear-gradient(to bottom, rgb(255 255 255 / 0.035) 1px, transparent 1px);
+    background-size: 36px 36px;
+  }
+
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+
+  .nav-link.active {
+    @apply text-signal-400;
+  }
+
+  .nav-link.active .nav-pill {
+    @apply bg-signal-400/12 ring-1 ring-signal-400/25;
+  }
+
+  .side-link.active {
+    @apply bg-white/[0.06] text-zinc-50 ring-1 ring-white/[0.06];
+  }
+
+  .side-link.active svg {
+    @apply text-signal-400;
+  }
+}
+
+#blazor-error-ui {
+  @apply fixed inset-x-3 bottom-24 z-[60] hidden rounded-2xl bg-rose-500 px-4 py-3 text-sm font-medium text-white shadow-2xl lg:bottom-6;
+}
+
+#blazor-error-ui .reload {
+  @apply ml-2 underline;
+}
+
+#blazor-error-ui .dismiss {
+  @apply absolute top-3 right-4 cursor-pointer;
+}
+
+.blazor-error-boundary {
+  @apply rounded-2xl bg-rose-500/15 p-4 text-rose-200 ring-1 ring-rose-400/30;
+}
+
+.blazor-error-boundary::after {
+  content: "Something broke while rendering this part of the page.";
+}
+
+.validation-message {
+  @apply mt-1.5 text-xs text-rose-300;
+}

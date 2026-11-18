@@ -1,0 +1,188 @@
+@page "/players"
+@inherits LiveComponent
+@inject RconActions Rcon
+@inject DialogService Dialogs
+
+<PageTitle>Players · Shack Control</PageTitle>
+
+<PageHeader Title="Players" Eyebrow="Roster" Subtitle="@Subtitle" />
+
+<div class="segmented mb-5 flex w-full sm:w-auto sm:max-w-md">
+    <button type="button" class="@(tab == Tab.Online ? "is-active" : "")" @onclick="() => SwitchTabAsync(Tab.Online)">
+        Online <span class="rounded-full bg-white/[0.08] px-1.5 text-[0.65rem] tabular-nums">@Snapshot.Players.Count</span>
+    </button>
+    <button type="button" class="@(tab == Tab.Bans ? "is-active" : "")" @onclick="() => SwitchTabAsync(Tab.Bans)">Bans</button>
+    <button type="button" class="@(tab == Tab.Moderators ? "is-active" : "")" @onclick="() => SwitchTabAsync(Tab.Moderators)">Moderators</button>
+</div>
+
+@switch (tab)
+{
+    case Tab.Online:
+        <div class="mb-5 flex flex-col gap-3 sm:flex-row">
+            <div class="relative flex-1">
+                <span class="pointer-events-none absolute inset-y-0 left-4 grid place-items-center text-zinc-500"><Icon Name="search" Class="size-[1.1rem]" /></span>
+                <input type="search" class="field pl-11" placeholder="Search name or ID" @bind="search" @bind:event="oninput" aria-label="Search players" />
+            </div>
+            <div class="segmented flex">
+                <button type="button" class="@(teamFilter is null ? "is-active" : "")" @onclick="() => teamFilter = null">All</button>
+                <button type="button" class="@(teamFilter == PavlovCatalog.BlueTeam ? "is-active !text-team-blue" : "")" @onclick="() => teamFilter = PavlovCatalog.BlueTeam">Blue</button>
+                <button type="button" class="@(teamFilter == PavlovCatalog.RedTeam ? "is-active !text-team-red" : "")" @onclick="() => teamFilter = PavlovCatalog.RedTeam">Red</button>
+            </div>
+        </div>
+
+        @if (Filtered.Count == 0)
+        {
+            <div class="surface">
+                @if (Snapshot.Players.Count == 0)
+                {
+                    <EmptyState IconName="players" Title="Nobody's here yet" Message="Players show up here the moment they join, refreshed every few seconds." />
+                }
+                else
+                {
+                    <EmptyState IconName="search" Title="No matches" Message="Try another name, or clear the team filter." />
+                }
+            </div>
+        }
+        else
+        {
+            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                @foreach (var player in Filtered)
+                {
+                    <button type="button" @key="player.UniqueId" class="surface group relative w-full animate-rise cursor-pointer overflow-hidden p-4 text-left transition duration-300 hover:border-white/[0.14] hover:bg-white/[0.05] active:scale-[0.99]" @onclick="() => OpenSheet(player)">
+                        <span class="@($"absolute inset-y-5 left-0 w-1 rounded-r-full {(player.TeamId == PavlovCatalog.RedTeam ? "bg-team-red" : "bg-team-blue")}")"></span>
+                        <div class="flex items-center gap-3">
+                            <Avatar Name="@player.DisplayName" TeamId="player.TeamId" Dead="player.Dead" />
+                            <div class="min-w-0 flex-1">
+                                <p class="flex items-center gap-1.5">
+                                    <span class="truncate font-semibold text-zinc-50">@player.DisplayName</span>
+                                    @if (player.Gag)
+                                    {
+                                        <Icon Name="mic-off" Class="size-3.5 shrink-0 text-amber-300" StrokeWidth="2" />
+                                    }
+                                </p>
+                                <p class="truncate font-mono text-[0.72rem] text-zinc-500">@player.UniqueId</p>
+                            </div>
+                            <Icon Name="chevron-right" Class="size-4 text-zinc-600 transition group-hover:translate-x-0.5 group-hover:text-zinc-300" />
+                        </div>
+                        <dl class="mt-4 grid grid-cols-4 gap-1 border-t border-white/[0.05] pt-3.5">
+                            <div><dt class="eyebrow !text-[0.56rem]">K/D/A</dt><dd class="mt-1 font-mono text-[0.8rem] font-semibold">@player.KDA</dd></div>
+                            <div><dt class="eyebrow !text-[0.56rem]">Score</dt><dd class="mt-1 text-[0.85rem] font-semibold tabular-nums">@player.Score</dd></div>
+                            <div><dt class="eyebrow !text-[0.56rem]">Cash</dt><dd class="mt-1 text-[0.85rem] font-semibold tabular-nums">$@player.Cash</dd></div>
+                            <div class="text-right"><dt class="eyebrow !text-[0.56rem]">Ping</dt><dd class="@($"mt-1 text-[0.85rem] font-semibold tabular-nums {PlayerSheet.PingTone(player.Ping)}")">@player.Ping.ToString("0", CultureInfo.InvariantCulture)</dd></div>
+                        </dl>
+                    </button>
+                }
+            </div>
+        }
+        break;
+
+    case Tab.Bans:
+        <IdListPanel Title="Banned players" Items="bans" Loading="listLoading" IconName="ban"
+                     EmptyTitle="No bans" EmptyMessage="Banned players are listed here. Bans are saved to blacklist.txt."
+                     InputPlaceholder="Oculus username to ban" AddLabel="Ban" AddDanger="true" RemoveLabel="Unban"
+                     OnAdd="BanIdAsync" OnRemove="UnbanAsync" />
+        break;
+
+    case Tab.Moderators:
+        <IdListPanel Title="Moderators" Items="moderators" Loading="listLoading" IconName="shield"
+                     EmptyTitle="No moderators" EmptyMessage="Moderators get the in-game admin menu and vote-kick immunity. Saved to mods.txt."
+                     InputPlaceholder="Oculus username" AddLabel="Add" RemoveLabel="Remove"
+                     OnAdd="AddModeratorAsync" OnRemove="RemoveModeratorAsync" />
+        break;
+}
+
+<PlayerSheet Player="SelectedPlayer" Left="SelectedLeft" Others="Snapshot.Players" GameMode="@(Snapshot.Info?.GameMode ?? "")" @bind-Open="sheetOpen" />
+
+@code {
+    private enum Tab
+    {
+        Online,
+        Bans,
+        Moderators,
+    }
+
+    private Tab tab = Tab.Online;
+    private string search = "";
+    private int? teamFilter;
+    private bool sheetOpen;
+    private PlayerDetail? lastSelected;
+    private IReadOnlyList<string> bans = [];
+    private IReadOnlyList<string> moderators = [];
+    private bool listLoading;
+
+    private string Subtitle => Snapshot.Info is { } info
+        ? $"{info.CurrentPlayers} of {info.MaxPlayers} slots in use on {info.DisplayMap}"
+        : "Live roster, refreshed every few seconds";
+
+    private List<PlayerDetail> Filtered =>
+    [
+        .. Snapshot.Players
+            .Where(p => teamFilter is null || p.TeamId == teamFilter)
+            .Where(p => search.Length == 0
+                || p.DisplayName.Contains(search, StringComparison.OrdinalIgnoreCase)
+                || p.UniqueId.Contains(search, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(p => p.TeamId)
+            .ThenByDescending(p => p.Score),
+    ];
+
+    private PlayerDetail? SelectedPlayer =>
+        lastSelected is null ? null : Snapshot.Players.FirstOrDefault(p => p.UniqueId == lastSelected.UniqueId) ?? lastSelected;
+
+    private bool SelectedLeft => lastSelected is not null && Snapshot.Players.All(p => p.UniqueId != lastSelected.UniqueId);
+
+    private void OpenSheet(PlayerDetail player)
+    {
+        lastSelected = player;
+        sheetOpen = true;
+    }
+
+    private async Task SwitchTabAsync(Tab next)
+    {
+        tab = next;
+        listLoading = true;
+        switch (next)
+        {
+            case Tab.Bans:
+                bans = await Rcon.QueryAsync(c => c.GetBanListAsync(), bans);
+                break;
+            case Tab.Moderators:
+                moderators = await Rcon.QueryAsync(c => c.GetModeratorListAsync(), moderators);
+                break;
+        }
+
+        listLoading = false;
+    }
+
+    private async Task<bool> BanIdAsync(string id)
+    {
+        if (!await Dialogs.ConfirmAsync($"Ban {id}?", "If they're online they're kicked. The ban is permanent until you unban them.", "Ban", danger: true))
+        {
+            return false;
+        }
+
+        var ok = await Rcon.RunAsync($"Banned {id}", c => c.BanAsync(id));
+        await SwitchTabAsync(Tab.Bans);
+        return ok;
+    }
+
+    private async Task<bool> UnbanAsync(string id)
+    {
+        var ok = await Rcon.RunAsync($"Unbanned {id}", c => c.UnbanAsync(id));
+        await SwitchTabAsync(Tab.Bans);
+        return ok;
+    }
+
+    private async Task<bool> AddModeratorAsync(string id)
+    {
+        var ok = await Rcon.RunAsync($"{id} is now a moderator", c => c.AddModeratorAsync(id));
+        await SwitchTabAsync(Tab.Moderators);
+        return ok;
+    }
+
+    private async Task<bool> RemoveModeratorAsync(string id)
+    {
+        var ok = await Rcon.RunAsync($"{id} is no longer a moderator", c => c.RemoveModeratorAsync(id));
+        await SwitchTabAsync(Tab.Moderators);
+        return ok;
+    }
+}

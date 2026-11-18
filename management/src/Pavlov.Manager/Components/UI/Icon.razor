@@ -1,0 +1,14 @@
+<svg class="@Class" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="@StrokeWidth" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    @foreach (var path in Icons.Get(Name))
+    {
+        <path d="@path" />
+    }
+</svg>
+
+@code {
+    [Parameter, EditorRequired] public string Name { get; set; } = "";
+
+    [Parameter] public string Class { get; set; } = "size-5";
+
+    [Parameter] public string StrokeWidth { get; set; } = "1.75";
+}

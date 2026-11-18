@@ -1,0 +1,96 @@
+@* A list of player ids (bans, moderators) with add and remove. *@
+<div class="grid gap-4 lg:grid-cols-[22rem_1fr]">
+    <form class="surface h-fit p-5" @onsubmit="AddAsync" @onsubmit:preventDefault>
+        <span class="grid size-10 place-items-center rounded-2xl bg-white/[0.05] text-zinc-300 ring-1 ring-white/[0.07]"><Icon Name="@IconName" Class="size-5" /></span>
+        <label for="@inputId" class="mt-4 mb-1.5 block text-sm font-semibold">@AddLabel by ID</label>
+        <p class="mb-3 text-xs leading-relaxed text-zinc-500">Works for players who aren't online too.</p>
+        <input id="@inputId" class="field font-mono text-sm" placeholder="@InputPlaceholder" @bind="newId" autocomplete="off" autocapitalize="off" spellcheck="false" />
+        <button type="submit" class="@($"btn mt-3 h-12 w-full {(AddDanger ? "btn-danger" : "btn-primary")}")" disabled="@(busy || string.IsNullOrWhiteSpace(newId))">
+            <Icon Name="plus" Class="size-4" StrokeWidth="2.2" /> @AddLabel
+        </button>
+    </form>
+
+    <section class="surface overflow-hidden">
+        <div class="flex items-center justify-between border-b border-white/[0.05] px-5 py-4">
+            <h2 class="text-sm font-semibold">@Title</h2>
+            <span class="chip tabular-nums">@Items.Count</span>
+        </div>
+        @if (Loading && Items.Count == 0)
+        {
+            <div class="space-y-3 p-5">
+                <div class="h-12 animate-pulse rounded-2xl bg-white/[0.04]"></div>
+                <div class="h-12 animate-pulse rounded-2xl bg-white/[0.04]"></div>
+            </div>
+        }
+        else if (Items.Count == 0)
+        {
+            <EmptyState IconName="@IconName" Title="@EmptyTitle" Message="@EmptyMessage" />
+        }
+        else
+        {
+            <ul class="divide-y divide-white/[0.05]">
+                @foreach (var id in Items)
+                {
+                    <li @key="id" class="flex items-center gap-3 px-5 py-3">
+                        <Avatar Name="@id" Class="size-9 rounded-xl text-[0.7rem]" />
+                        <span class="min-w-0 flex-1 truncate font-mono text-sm">@id</span>
+                        <button type="button" class="btn btn-soft btn-sm" disabled="@busy" @onclick="() => RemoveAsync(id)">@RemoveLabel</button>
+                    </li>
+                }
+            </ul>
+        }
+    </section>
+</div>
+
+@code {
+    private readonly string inputId = $"id-{Guid.NewGuid():N}";
+    private string? newId;
+    private bool busy;
+
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+
+    [Parameter] public IReadOnlyList<string> Items { get; set; } = [];
+
+    [Parameter] public bool Loading { get; set; }
+
+    [Parameter] public string IconName { get; set; } = "list";
+
+    [Parameter] public string EmptyTitle { get; set; } = "";
+
+    [Parameter] public string? EmptyMessage { get; set; }
+
+    [Parameter] public string InputPlaceholder { get; set; } = "";
+
+    [Parameter] public string AddLabel { get; set; } = "Add";
+
+    [Parameter] public bool AddDanger { get; set; }
+
+    [Parameter] public string RemoveLabel { get; set; } = "Remove";
+
+    [Parameter, EditorRequired] public Func<string, Task<bool>> OnAdd { get; set; } = default!;
+
+    [Parameter, EditorRequired] public Func<string, Task<bool>> OnRemove { get; set; } = default!;
+
+    private async Task AddAsync()
+    {
+        if (string.IsNullOrWhiteSpace(newId))
+        {
+            return;
+        }
+
+        busy = true;
+        if (await OnAdd(newId.Trim()))
+        {
+            newId = null;
+        }
+
+        busy = false;
+    }
+
+    private async Task RemoveAsync(string id)
+    {
+        busy = true;
+        await OnRemove(id);
+        busy = false;
+    }
+}
