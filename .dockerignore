@@ -1,0 +1,5 @@
+.env
+.env.*
+config/
+README.md
+.gitignore
