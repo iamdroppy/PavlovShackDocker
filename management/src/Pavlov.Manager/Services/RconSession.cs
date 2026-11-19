@@ -15,6 +15,12 @@ public sealed class RconSettings
     public int Port { get; set; } = 9100;
 
     public int CommandTimeoutSeconds { get; set; } = 5;
+
+    /// <summary>
+    /// Optional. Lets background jobs (end-of-game rules) reach RCON when nobody has signed in
+    /// since the manager started. Sign-in still asks for the password.
+    /// </summary>
+    public string? Password { get; set; }
 }
 
 public sealed record LoginResult(bool Succeeded, string? Error = null, string? Generation = null);
@@ -35,6 +41,7 @@ public sealed class RconSession(IOptions<RconSettings> settings, ILoggerFactory 
     private readonly ILogger _logger = loggerFactory.CreateLogger<RconSession>();
     private PavlovRconClient? _client;
     private byte[]? _passwordHash;
+    private DateTimeOffset _backgroundRetryAt;
 
     /// <summary>Changes whenever the credentials change; cookies from an older generation are rejected.</summary>
     public string Generation { get; private set; } = Guid.NewGuid().ToString("N");
@@ -44,6 +51,36 @@ public sealed class RconSession(IOptions<RconSettings> settings, ILoggerFactory 
     public bool IsActive => _client is not null;
 
     public PavlovRconClient Client => _client ?? throw new RconSessionExpiredException();
+
+    /// <summary>True when background jobs can connect on their own (Rcon:Password is set).</summary>
+    public bool CanRunUnattended => !string.IsNullOrEmpty(settings.Value.Password);
+
+    /// <summary>
+    /// The shared client for background jobs: the signed-in session if there is one, otherwise a
+    /// connection made with the configured password. Null when neither is available.
+    /// </summary>
+    public async Task<PavlovRconClient?> GetBackgroundClientAsync(CancellationToken cancellationToken)
+    {
+        if (_client is { } client)
+        {
+            return client;
+        }
+
+        if (!CanRunUnattended || DateTimeOffset.UtcNow < _backgroundRetryAt)
+        {
+            return null;
+        }
+
+        var result = await LoginAsync(settings.Value.Password!, cancellationToken);
+        if (result.Succeeded)
+        {
+            return _client;
+        }
+
+        _backgroundRetryAt = DateTimeOffset.UtcNow.AddMinutes(1);
+        _logger.LogWarning("Background RCON sign-in failed ({Error}); retrying in a minute", result.Error);
+        return null;
+    }
 
     public bool IsValid(ClaimsPrincipal? principal) =>
         _client is not null && principal?.FindFirst(GenerationClaim)?.Value == Generation;

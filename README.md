@@ -11,7 +11,7 @@ A Pavlov Shack (Quest) dedicated server in a container, built from the
 - `compose.yaml`: ports, volumes and settings.
 - `config/`: your `Game.ini`, plus optional `mods.txt`, `blacklist.txt` and `whitelist.txt`.
 - `management/`: **Shack Control**, a mobile-first web manager for the server over RCON (Blazor,
-  .NET 10). It runs as the `manager` service at <http://localhost:8080>. See
+  .NET 10). It runs as the `manager` service at <http://localhost:8118>. See
   [management/README.md](management/README.md).
 
 ## Quick start
@@ -36,7 +36,7 @@ podman compose logs -f
 ```
 
 The first start downloads the server (a few GB). Later starts only download updates.
-Then open <http://localhost:8080> and sign in with `RCON_PASSWORD` to manage the server.
+Then open <http://localhost:8118> and sign in with `RCON_PASSWORD` to manage the server.
 
 ## Day to day
 
@@ -68,7 +68,7 @@ Open or forward these ports on your firewall or router:
 | 7777 (`GAME_PORT`) | UDP + TCP | Game. TCP lets Shack clients download mod.io maps |
 | 8177 (`GAME_PORT` + 400) | UDP + TCP | Server status helper |
 | 9100 (`RCON_PORT`) | TCP | RCON. Bound to 127.0.0.1 unless `RCON_BIND=0.0.0.0` |
-| 8080 (`MANAGER_PORT`) | TCP | Web manager. Bound to 127.0.0.1 unless `MANAGER_BIND=0.0.0.0` |
+| 8118 (`MANAGER_PORT`) | TCP | Web manager. Bound to 127.0.0.1 unless `MANAGER_BIND=0.0.0.0` |
 
 To change the game port, set `GAME_PORT` and set `QUERY_PORT` to `GAME_PORT + 400`. The
 container refuses to start if they don't match. For several servers on one host, copy the

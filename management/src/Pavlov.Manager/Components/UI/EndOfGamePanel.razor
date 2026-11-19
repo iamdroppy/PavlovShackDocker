@@ -1,0 +1,263 @@
+@using Pavlov.Manager.Services.EndOfGame
+@inherits LiveComponent
+@inject RuleStore Rules
+@inject MatchTracker Tracker
+@inject RconSession Session
+@inject DialogService Dialogs
+@inject ToastService Toasts
+@inject TimeProvider Time
+
+<section class="surface mb-4 overflow-hidden">
+    <header class="flex flex-wrap items-center gap-3 border-b border-white/[0.05] px-5 py-4 sm:px-6">
+        <span class="grid size-10 shrink-0 place-items-center rounded-2xl bg-signal-400/12 text-signal-400 ring-1 ring-signal-400/20"><Icon Name="flag" Class="size-5" /></span>
+        <div class="min-w-0 flex-1">
+            <h2 class="text-sm font-semibold">End of game</h2>
+            <p class="text-xs leading-snug text-zinc-500">Rotate to the next map when a time, lead or score limit is hit. Hangfire checks every 5 s.</p>
+        </div>
+        <div class="flex w-full gap-2 sm:w-auto">
+            <a href="hangfire" target="_blank" rel="noopener" class="btn btn-soft btn-sm flex-1 sm:flex-none"><Icon Name="external" Class="size-3.5" />Jobs</a>
+            <button type="button" class="btn btn-primary btn-sm flex-1 sm:flex-none" @onclick="NewRule"><Icon Name="plus" Class="size-3.5" StrokeWidth="2.4" />New rule</button>
+        </div>
+    </header>
+
+    @if (rules.Count > 0 && !Session.CanRunUnattended)
+    {
+        <p class="flex gap-2.5 border-b border-white/[0.05] bg-amber-400/[0.05] px-5 py-3 text-xs leading-relaxed text-amber-200/90 sm:px-6">
+            <Icon Name="info" Class="mt-0.5 size-3.5 shrink-0" />
+            Rules only run after someone signs in since the manager last started. Give the manager <span class="font-mono">RCON_PASSWORD</span> to run them unattended.
+        </p>
+    }
+
+    @if (Snapshot.Info is { } info && Active(info) is { Count: > 0 } active)
+    {
+        <div class="border-b border-white/[0.05] px-5 py-5 sm:px-6">
+            <div class="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+                <p class="flex items-center gap-2 text-sm font-semibold">
+                    <StatusDot Online="true" Class="scale-75" />
+                    @info.DisplayMap · @PavlovCatalog.GameModeName(info.GameMode)
+                    @if (info.Teams)
+                    {
+                        <span class="ml-1 font-mono text-xs"><span class="text-team-blue">@info.Team0Score</span><span class="text-zinc-600">–</span><span class="text-team-red">@info.Team1Score</span></span>
+                    }
+                </p>
+                <p class="font-mono text-xs text-zinc-500">
+                    @if (Tracker.Current is { } match)
+                    {
+                        <span class="text-zinc-300 tabular-nums">@EndOfGameEvaluator.Clock(Elapsed(match))</span>
+                        <span>@(match.FromStart ? " elapsed" : " since the manager joined")</span>
+                    }
+                    else if (Tracker.IsChangingMap)
+                    {
+                        <span>changing map…</span>
+                    }
+                </p>
+            </div>
+            <div class="grid gap-3 sm:grid-cols-2">
+                @foreach (var rule in active)
+                {
+                    <div class="rounded-2xl bg-ink-950/40 p-4 ring-1 ring-white/[0.05]">
+                        <p class="mb-3 truncate text-xs font-semibold text-zinc-300">@rule.DisplayName</p>
+                        <div class="space-y-3">
+                            @foreach (var limit in EndOfGameEvaluator.Progress(rule, info, Snapshot.Players, Tracker.Current is { } m ? Elapsed(m) : TimeSpan.Zero))
+                            {
+                                <div>
+                                    <div class="flex items-baseline justify-between text-[0.72rem]">
+                                        <span class="text-zinc-500">@limit.Label</span>
+                                        <span class="font-mono tabular-nums"><span class="text-zinc-100">@limit.Current</span><span class="text-zinc-600"> / @limit.Target</span></span>
+                                    </div>
+                                    <div class="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
+                                        <div class="@($"h-full rounded-full transition-[width] duration-700 {BarTone(limit.Fraction)}")" style="width: @Percent(limit.Fraction)%"></div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+    @if (rules.Count == 0)
+    {
+        <EmptyState IconName="flag" Title="No end-of-game rules" Message="Create one to end matches automatically, e.g. after 20 minutes, at 50 points, or when a team leads by 10%." Class="!py-10">
+            <button type="button" class="btn btn-soft mt-5" @onclick="NewRule"><Icon Name="plus" Class="size-4" />New rule</button>
+        </EmptyState>
+    }
+    else
+    {
+        <ul class="divide-y divide-white/[0.05]">
+            @foreach (var rule in rules)
+            {
+                var live = Snapshot.Info is { } current && rule.Enabled && rule.Matches(current);
+                <li @key="rule.Id" class="@($"flex flex-wrap items-center gap-x-4 gap-y-3 px-5 py-4 sm:px-6 {(rule.Enabled ? "" : "opacity-55")}")">
+                    <div class="min-w-0 flex-1 basis-56">
+                        <p class="flex items-center gap-2">
+                            <span class="truncate text-sm font-semibold text-zinc-50">@rule.DisplayName</span>
+                            @if (live)
+                            {
+                                <span class="chip h-5 shrink-0 bg-signal-400/10 px-2 text-[0.6rem] text-signal-300 ring-signal-400/20">Active now</span>
+                            }
+                            else if (!rule.Enabled)
+                            {
+                                <span class="chip h-5 shrink-0 px-2 text-[0.6rem]">Paused</span>
+                            }
+                        </p>
+                        <div class="mt-1.5 flex flex-wrap gap-1.5">
+                            @if (rule.Name.Length > 0)
+                            {
+                                <span class="chip h-6 text-[0.68rem]"><Icon Name="map" Class="size-3" StrokeWidth="2" />@rule.ScopeLabel</span>
+                            }
+                            @if (rule.TimeLimitMinutes is { } minutes)
+                            {
+                                <span class="chip h-6 text-[0.68rem]"><Icon Name="clock" Class="size-3" StrokeWidth="2" />@minutes min</span>
+                            }
+                            @if (rule.LeadPercent is { } percent)
+                            {
+                                <span class="chip h-6 text-[0.68rem]"><Icon Name="trend" Class="size-3" StrokeWidth="2" />@percent% lead@(rule.LeadMinimumScore > 0 ? $" · from {rule.LeadMinimumScore}" : "")</span>
+                            }
+                            @if (rule.ScoreLimit is { } limit)
+                            {
+                                <span class="chip h-6 text-[0.68rem]"><Icon Name="trophy" Class="size-3" StrokeWidth="2" />@limit pts</span>
+                            }
+                        </div>
+                    </div>
+                    <div class="ml-auto flex items-center gap-1.5">
+                        <Toggle Value="rule.Enabled" ValueChanged="enabled => SetEnabled(rule, enabled)" Label="@($"{rule.DisplayName} enabled")" />
+                        <button type="button" class="btn btn-ghost btn-icon size-9 rounded-xl" @onclick="() => Edit(rule)" aria-label="Edit @rule.DisplayName"><Icon Name="pencil" Class="size-4" /></button>
+                        <button type="button" class="btn btn-ghost btn-icon size-9 rounded-xl hover:text-rose-300" @onclick="() => DeleteAsync(rule)" aria-label="Delete @rule.DisplayName"><Icon Name="trash" Class="size-4" /></button>
+                    </div>
+                </li>
+            }
+        </ul>
+    }
+
+    @if (history.Count > 0)
+    {
+        <div class="border-t border-white/[0.05] px-5 py-4 sm:px-6">
+            <h3 class="eyebrow mb-3">Recent results</h3>
+            <ol class="space-y-2.5">
+                @foreach (var result in history.Take(5))
+                {
+                    <li class="flex items-start gap-3">
+                        <span class="@($"mt-1 size-2 shrink-0 rounded-full {WinnerDot(result)}")"></span>
+                        <div class="min-w-0 flex-1 text-[0.8rem]">
+                            <p class="text-zinc-200">
+                                <span class="font-semibold">@(result.Winner is "Draw" or "Nobody" ? result.Winner : $"{result.Winner} won")</span>
+                                @if (result.Teams)
+                                {
+                                    <span class="ml-1.5 font-mono text-zinc-300">@result.BlueScore–@result.RedScore</span>
+                                }
+                                <span class="ml-1.5 text-zinc-500">@PavlovCatalog.MapName(result.MapId) · @result.GameMode</span>
+                            </p>
+                            <p class="truncate text-xs text-zinc-500">
+                                @result.Reason · @EndOfGameEvaluator.Clock(result.Elapsed) played · @Ago(result.At)
+                                @if (result.Error is { } error)
+                                {
+                                    <span class="text-rose-300"> · rotate failed: @error</span>
+                                }
+                            </p>
+                        </div>
+                    </li>
+                }
+            </ol>
+        </div>
+    }
+</section>
+
+<RuleEditorSheet @bind-Open="editorOpen" Rule="editing" RotationMaps="RotationMaps" />
+
+@code {
+    private IReadOnlyList<EndOfGameRule> rules = [];
+    private IReadOnlyList<GameResult> history = [];
+    private bool editorOpen;
+    private EndOfGameRule? editing;
+
+    [Parameter] public IReadOnlyList<string> RotationMaps { get; set; } = [];
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        Load();
+        Rules.Changed += OnRulesChanged;
+        Tracker.Changed += OnSnapshotChanged;
+    }
+
+    private void Load()
+    {
+        rules = Rules.Rules;
+        history = Rules.History;
+    }
+
+    private void OnRulesChanged()
+    {
+        Load();
+        OnSnapshotChanged();
+    }
+
+    private List<EndOfGameRule> Active(ServerInfo info) => [.. rules.Where(r => r.Enabled && r.Matches(info))];
+
+    private TimeSpan Elapsed(MatchState match) => Time.GetUtcNow() - match.StartedAt;
+
+    private void NewRule()
+    {
+        editing = null;
+        editorOpen = true;
+    }
+
+    private void Edit(EndOfGameRule rule)
+    {
+        editing = rule;
+        editorOpen = true;
+    }
+
+    private void SetEnabled(EndOfGameRule rule, bool enabled)
+    {
+        Rules.SetEnabled(rule.Id, enabled);
+        Toasts.Success(enabled ? $"{rule.DisplayName} is on" : $"{rule.DisplayName} paused", enabled ? "Its Hangfire job is scheduled again." : "Its Hangfire job was removed.");
+    }
+
+    private async Task DeleteAsync(EndOfGameRule rule)
+    {
+        if (await Dialogs.ConfirmAsync($"Delete {rule.DisplayName}?", "The rule and its Hangfire job are removed. Past results stay in the list.", "Delete", danger: true))
+        {
+            Rules.Delete(rule.Id);
+            Toasts.Success("Rule deleted");
+        }
+    }
+
+    private static string Percent(double fraction) => (fraction * 100).ToString("0.#", CultureInfo.InvariantCulture);
+
+    private static string BarTone(double fraction) => fraction switch
+    {
+        >= 0.9 => "bg-rose-400",
+        >= 0.7 => "bg-amber-300",
+        _ => "bg-signal-400",
+    };
+
+    private static string WinnerDot(GameResult result) => result.Winner switch
+    {
+        "Blue" => "bg-team-blue",
+        "Red" => "bg-team-red",
+        _ => "bg-zinc-500",
+    };
+
+    private string Ago(DateTimeOffset at)
+    {
+        var age = Time.GetUtcNow() - at;
+        return age.TotalMinutes < 1 ? "just now"
+            : age.TotalHours < 1 ? $"{(int)age.TotalMinutes} min ago"
+            : age.TotalDays < 1 ? $"{(int)age.TotalHours} h ago"
+            : at.ToLocalTime().ToString("MMM d, HH:mm", CultureInfo.InvariantCulture);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            Rules.Changed -= OnRulesChanged;
+            Tracker.Changed -= OnSnapshotChanged;
+        }
+
+        base.Dispose(disposing);
+    }
+}

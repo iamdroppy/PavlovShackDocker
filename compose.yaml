@@ -41,7 +41,7 @@ services:
       - ./config:/config:ro,z
     stop_grace_period: 30s
 
-  # Web manager (management/): sign in with RCON_PASSWORD at http://localhost:8080.
+  # Web manager (management/): sign in with RCON_PASSWORD at http://localhost:8118.
   # Talks to RCON over the compose network, so RCON needn't be published on the host.
   manager:
     build:
@@ -55,11 +55,19 @@ services:
     environment:
       Rcon__Host: pavlov
       Rcon__Port: ${RCON_PORT:-9100}
+      # Lets the end-of-game rules (Hangfire) reach RCON without anyone signed in.
+      # Remove it to keep the password in browsers only; rules then pause after a restart until someone signs in.
+      Rcon__Password: ${RCON_PASSWORD:-}
+      Data__Path: /data
       # Set to true behind a reverse proxy (TLS) so the login throttle sees client IPs.
       TrustForwardedHeaders: ${MANAGER_TRUST_PROXY:-true}
     ports:
       # 127.0.0.1 = this machine only. MANAGER_BIND=0.0.0.0 opens it to your network (plain HTTP).
       - "${MANAGER_BIND:-127.0.0.1}:${MANAGER_PORT:-8118}:8080"
+    volumes:
+      # End-of-game rules and recent results.
+      - manager-data:/data
 
 volumes:
   pavlov-server:
+  manager-data:

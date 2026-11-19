@@ -1,3 +1,5 @@
+using Hangfire;
+using Hangfire.InMemory;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -5,6 +7,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using Pavlov.Manager.Components;
 using Pavlov.Manager.Services;
+using Pavlov.Manager.Services.EndOfGame;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,6 +20,25 @@ builder.Services.AddSingleton<RconSession>();
 builder.Services.AddSingleton<LoginThrottle>();
 builder.Services.AddSingleton<ServerMonitor>();
 builder.Services.AddHostedService(services => services.GetRequiredService<ServerMonitor>());
+builder.Services.AddSingleton<RuleStore>();
+builder.Services.AddSingleton<MatchTracker>();
+builder.Services.AddTransient<EndOfGameJob>();
+builder.Services.AddHostedService<EndOfGameScheduler>();
+
+// Hangfire runs the end-of-game rules. Storage is in memory: the rules file is the source of
+// truth and the recurring jobs are rebuilt from it on startup. Job history is kept 30 minutes.
+builder.Services.AddHangfire(configuration => configuration
+    .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+    .UseSimpleAssemblyNameTypeSerializer()
+    .UseRecommendedSerializerSettings()
+    .UseInMemoryStorage(new InMemoryStorageOptions { MaxExpirationTime = TimeSpan.FromMinutes(30) }));
+builder.Services.AddHangfireServer(options =>
+{
+    options.ServerName = "shack-control";
+    options.WorkerCount = 2;
+    options.SchedulePollingInterval = TimeSpan.FromSeconds(1);
+});
+
 builder.Services.AddScoped<ToastService>();
 builder.Services.AddScoped<DialogService>();
 builder.Services.AddScoped<RconActions>();
@@ -77,6 +99,16 @@ app.MapPost("/logout", async (HttpContext context, [FromForm] string? returnUrl)
     await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
     return Results.LocalRedirect("~/login");
 });
+
+// Hangfire dashboard: same sign-in as the app (the RCON password). Signed-out visitors are
+// sent to /login and come back here afterwards.
+app.MapHangfireDashboard("/hangfire", new DashboardOptions
+{
+    DashboardTitle = "Shack Control · Jobs",
+    AppPath = "/maps",
+    Authorization = [new SignedInDashboardAuthorization()],
+    DisplayStorageConnectionString = false,
+}).RequireAuthorization();
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();

@@ -20,13 +20,16 @@ COPY src/ src/
 COPY --from=styles /src/Pavlov.Manager/wwwroot/app.css src/Pavlov.Manager/wwwroot/app.css
 RUN dotnet publish src/Pavlov.Manager/Pavlov.Manager.csproj -c Release -o /app --no-restore -p:SkipTailwind=true
 
-# 3. Runtime: non-root "app" user, HTTP on 8080.
+# 3. Runtime: non-root "app" user, HTTP on 8080. /data holds the end-of-game rules (a volume).
 FROM mcr.microsoft.com/dotnet/aspnet:10.0
 WORKDIR /app
 COPY --from=build /app .
+RUN mkdir -p /data && chown app:app /data
 ENV ASPNETCORE_HTTP_PORTS=8080 \
     Rcon__Host=pavlov \
-    Rcon__Port=9100
+    Rcon__Port=9100 \
+    Data__Path=/data
 EXPOSE 8080
+VOLUME ["/data"]
 USER app
 ENTRYPOINT ["dotnet", "Pavlov.Manager.dll"]

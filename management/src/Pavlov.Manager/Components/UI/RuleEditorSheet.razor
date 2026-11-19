@@ -1,0 +1,216 @@
+@using Pavlov.Manager.Services.EndOfGame
+@inject RuleStore Rules
+@inject ToastService Toasts
+
+<Sheet Open="Open" OpenChanged="OpenChanged" Title="@(isNew ? "New end-of-game rule" : "Edit rule")" Width="sm:max-w-lg">
+    <form @onsubmit="Save" @onsubmit:preventDefault class="space-y-5">
+        <div>
+            <label for="rule-name" class="label">Name <span class="text-zinc-600">· optional</span></label>
+            <input id="rule-name" class="field" maxlength="40" @bind="draft.Name" placeholder="@draft.ToRule(Guid.Empty).ScopeLabel" />
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+            <div>
+                <label for="rule-map" class="label">Map</label>
+                <input id="rule-map" list="rule-maps" class="field font-mono text-sm" @bind="draft.MapId" placeholder="Every map" autocomplete="off" autocapitalize="off" spellcheck="false" />
+                <datalist id="rule-maps">
+                    @foreach (var map in MapSuggestions)
+                    {
+                        <option value="@map">@PavlovCatalog.MapName(map)</option>
+                    }
+                </datalist>
+            </div>
+            <div>
+                <label for="rule-mode" class="label">Game mode</label>
+                <select id="rule-mode" class="field" @bind="draft.GameMode">
+                    <option value="">Any mode</option>
+                    @foreach (var mode in PavlovCatalog.GameModes)
+                    {
+                        <option value="@mode.Id">@mode.Name</option>
+                    }
+                </select>
+            </div>
+        </div>
+
+        <div>
+            <p class="label">End the match when any of these is reached</p>
+            <div class="divide-y divide-white/[0.05] rounded-3xl bg-white/[0.025] ring-1 ring-white/[0.05]">
+                <div class="flex items-center gap-3 p-4">
+                    <span class="grid size-9 shrink-0 place-items-center rounded-xl bg-white/[0.05] text-zinc-300"><Icon Name="clock" Class="size-[1.1rem]" /></span>
+                    <div class="min-w-0 flex-1">
+                        <p class="text-sm font-semibold">Time limit</p>
+                        <p class="text-xs text-zinc-500">The leading side wins when time runs out.</p>
+                    </div>
+                    <Toggle @bind-Value="draft.UseTime" Label="Time limit" />
+                </div>
+                @if (draft.UseTime)
+                {
+                    <div class="flex animate-fade-in items-center gap-2 px-4 pb-4 pl-16">
+                        <input type="number" inputmode="numeric" min="1" max="600" class="field h-11 w-28 tabular-nums" @bind="draft.TimeLimitMinutes" aria-label="Minutes" />
+                        <span class="text-sm text-zinc-400">minutes</span>
+                    </div>
+                }
+
+                <div class="flex items-center gap-3 p-4">
+                    <span class="grid size-9 shrink-0 place-items-center rounded-xl bg-white/[0.05] text-zinc-300"><Icon Name="trend" Class="size-[1.1rem]" /></span>
+                    <div class="min-w-0 flex-1">
+                        <p class="text-sm font-semibold">Lead</p>
+                        <p class="text-xs text-zinc-500">e.g. Blue 10% above Red (33 vs 30) wins.</p>
+                    </div>
+                    <Toggle @bind-Value="draft.UseLead" Label="Lead" />
+                </div>
+                @if (draft.UseLead)
+                {
+                    <div class="grid animate-fade-in grid-cols-2 gap-2 px-4 pb-4 pl-16">
+                        <label class="block">
+                            <span class="mb-1 block text-[0.68rem] text-zinc-500">Ahead by</span>
+                            <span class="relative block">
+                                <input type="number" inputmode="numeric" min="1" max="1000" class="field h-11 pr-8 tabular-nums" @bind="draft.LeadPercent" />
+                                <span class="pointer-events-none absolute inset-y-0 right-3.5 grid place-items-center text-sm text-zinc-500">%</span>
+                            </span>
+                        </label>
+                        <label class="block">
+                            <span class="mb-1 block text-[0.68rem] text-zinc-500">Once leader has</span>
+                            <span class="relative block">
+                                <input type="number" inputmode="numeric" min="0" class="field h-11 pr-10 tabular-nums" @bind="draft.LeadMinimumScore" />
+                                <span class="pointer-events-none absolute inset-y-0 right-3.5 grid place-items-center text-sm text-zinc-500">pts</span>
+                            </span>
+                        </label>
+                    </div>
+                }
+
+                <div class="flex items-center gap-3 p-4">
+                    <span class="grid size-9 shrink-0 place-items-center rounded-xl bg-white/[0.05] text-zinc-300"><Icon Name="trophy" Class="size-[1.1rem]" /></span>
+                    <div class="min-w-0 flex-1">
+                        <p class="text-sm font-semibold">Score limit</p>
+                        <p class="text-xs text-zinc-500">First side to reach it wins.</p>
+                    </div>
+                    <Toggle @bind-Value="draft.UseScore" Label="Score limit" />
+                </div>
+                @if (draft.UseScore)
+                {
+                    <div class="flex animate-fade-in items-center gap-2 px-4 pb-4 pl-16">
+                        <input type="number" inputmode="numeric" min="1" class="field h-11 w-28 tabular-nums" @bind="draft.ScoreLimit" aria-label="Score limit" />
+                        <span class="text-sm text-zinc-400">points</span>
+                    </div>
+                }
+            </div>
+            <p class="mt-2 text-[0.7rem] leading-relaxed text-zinc-600">Team modes compare Blue and Red. Free-for-all modes compare the two best players. When a limit is hit the server rotates to the next map.</p>
+        </div>
+
+        @if (errors.Count > 0)
+        {
+            <ul class="space-y-1 rounded-2xl bg-rose-500/10 p-3.5 text-sm text-rose-200 ring-1 ring-rose-400/20" role="alert">
+                @foreach (var error in errors)
+                {
+                    <li>@error</li>
+                }
+            </ul>
+        }
+
+        <div class="grid grid-cols-2 gap-2.5 pt-1">
+            <button type="button" class="btn btn-soft h-12" @onclick="() => OpenChanged.InvokeAsync(false)">Cancel</button>
+            <button type="submit" class="btn btn-primary h-12">@(isNew ? "Create rule" : "Save rule")</button>
+        </div>
+    </form>
+</Sheet>
+
+@code {
+    private Draft draft = new();
+    private bool isNew = true;
+    private Guid editingId;
+    private List<string> errors = [];
+    private bool wasOpen;
+
+    [Parameter] public bool Open { get; set; }
+
+    [Parameter] public EventCallback<bool> OpenChanged { get; set; }
+
+    /// <summary>The rule to edit, or null for a new one.</summary>
+    [Parameter] public EndOfGameRule? Rule { get; set; }
+
+    [Parameter] public IReadOnlyList<string> RotationMaps { get; set; } = [];
+
+    private IEnumerable<string> MapSuggestions =>
+        RotationMaps.Concat(PavlovCatalog.StockMaps.Select(m => m.Id)).Distinct(StringComparer.OrdinalIgnoreCase);
+
+    protected override void OnParametersSet()
+    {
+        if (Open && !wasOpen)
+        {
+            isNew = Rule is null;
+            editingId = Rule?.Id ?? Guid.NewGuid();
+            draft = Rule is null ? new Draft() : Draft.From(Rule);
+            errors = [];
+        }
+
+        wasOpen = Open;
+    }
+
+    private async Task Save()
+    {
+        var rule = draft.ToRule(editingId) with
+        {
+            Enabled = Rule?.Enabled ?? true,
+            CreatedAt = Rule?.CreatedAt ?? DateTimeOffset.UtcNow,
+        };
+        errors = [.. rule.Validate()];
+        if (errors.Count > 0)
+        {
+            return;
+        }
+
+        Rules.Save(rule);
+        Toasts.Success(isNew ? "Rule created" : "Rule saved", $"{rule.DisplayName}: {string.Join(" · ", rule.Conditions)}");
+        await OpenChanged.InvokeAsync(false);
+    }
+
+    private sealed class Draft
+    {
+        public string Name { get; set; } = "";
+
+        public string? MapId { get; set; }
+
+        public string GameMode { get; set; } = "";
+
+        public bool UseTime { get; set; } = true;
+
+        public int TimeLimitMinutes { get; set; } = 20;
+
+        public bool UseLead { get; set; }
+
+        public int LeadPercent { get; set; } = 10;
+
+        public int LeadMinimumScore { get; set; } = 10;
+
+        public bool UseScore { get; set; } = true;
+
+        public int ScoreLimit { get; set; } = 50;
+
+        public static Draft From(EndOfGameRule rule) => new()
+        {
+            Name = rule.Name,
+            MapId = rule.MapId,
+            GameMode = rule.GameMode ?? "",
+            UseTime = rule.TimeLimitMinutes is not null,
+            TimeLimitMinutes = rule.TimeLimitMinutes ?? 20,
+            UseLead = rule.LeadPercent is not null,
+            LeadPercent = rule.LeadPercent ?? 10,
+            LeadMinimumScore = rule.LeadMinimumScore,
+            UseScore = rule.ScoreLimit is not null,
+            ScoreLimit = rule.ScoreLimit ?? 50,
+        };
+
+        public EndOfGameRule ToRule(Guid id) => new()
+        {
+            Id = id,
+            Name = Name.Trim(),
+            MapId = string.IsNullOrWhiteSpace(MapId) ? null : MapId.Trim(),
+            GameMode = string.IsNullOrEmpty(GameMode) ? null : GameMode,
+            TimeLimitMinutes = UseTime ? TimeLimitMinutes : null,
+            LeadPercent = UseLead ? LeadPercent : null,
+            LeadMinimumScore = LeadMinimumScore,
+            ScoreLimit = UseScore ? ScoreLimit : null,
+        };
+    }
+}

@@ -8,7 +8,7 @@ Sign-in uses only the server's RCON password.
 |---|---|
 | **Overview** | See the map, mode, round state, live scores, players and ping. Rotate the map, pause or resume, reset SND, clear vehicles. Give cash or items to a whole team. Shut down the server. |
 | **Players** | See the live roster with search and team filter. Each player's sheet has: kick, ban, kill, slap, gag, switch team, give or set cash, give items, set skin, teleport, moderator rights, and TTT role, karma and credits. Bans and moderators can be added by ID. |
-| **Maps** | See the map rotation and add, remove or play maps now (stock or mod.io `UGC…`). Manage mod.io mods. |
+| **Maps** | See the map rotation and add, remove or play maps now (stock or mod.io `UGC…`). Manage mod.io mods. Create, pause, edit and delete **end-of-game rules**, with live progress and recent results. |
 | **Server** | Set the server name, max players, PIN, whitelist, ammo type, time limit, competitive mode, name tags, bots, balance table, verbose logging, and TTT switches. |
 | **Console** | Send any command from the server's `Help` list, with autocomplete, history (↑/↓) and highlighted JSON replies. |
 
@@ -25,7 +25,7 @@ The manager is the `manager` service in the root [compose.yaml](../compose.yaml)
    podman compose up -d --build
    ```
 
-3. Open <http://localhost:8080> and sign in with `RCON_PASSWORD`.
+3. Open <http://localhost:8118> and sign in with `RCON_PASSWORD`.
 
 To open it from your phone on the same network, set `MANAGER_BIND=0.0.0.0` in `.env`, then run
 `podman compose up -d`. It serves plain HTTP. Before exposing it to the internet, put a TLS
@@ -34,13 +34,53 @@ reverse proxy (Caddy, Traefik, nginx) in front and set `MANAGER_TRUST_PROXY=true
 The manager reaches RCON over the compose network at `pavlov:9100`. If only the manager uses
 RCON, you can remove the RCON port mapping from the `pavlov` service.
 
+## End-of-game rules (Hangfire)
+
+A rule ends the match, by rotating to the next map, as soon as **any** of its limits is reached:
+
+| Limit | Example | Who wins |
+|---|---|---|
+| Time limit | 20 min | The side that's ahead when time runs out (or a draw) |
+| Lead | 10% ahead, once the leader has 10 pts | The leader. 33 vs 30 is exactly 10%. The minimum score stops 1–0 ending a match. |
+| Score limit | 50 pts | The first side to reach it |
+
+- **Which matches.** A rule can cover every map, one map, one game mode, or one map in one mode.
+  Rotation rows on the Maps page show which rule applies to them.
+- **Team modes** compare Blue and Red. Free-for-all modes compare the two best players.
+- **Hangfire jobs.** Each enabled rule is a Hangfire recurring job (`end-of-game-<id>`, cron
+  `*/5 * * * * *`, so every 5 s). Creating or resuming a rule adds its job; pausing or deleting
+  removes it.
+- **Only one rule ends a match.** After it rotates the map, all rules wait 45 s for the next map to
+  load.
+- **How time is counted.** RCON has no match clock, so the manager counts from when it saw the map,
+  the mode or the scores change. After a manager restart mid-match, the clock starts at the restart.
+  The panel then says "since the manager joined".
+- **Storage.** Rules and the last 30 results live in `end-of-game.json` on the `manager-data`
+  volume (`/data`). Hangfire itself uses in-memory storage: its jobs are rebuilt from the rules on
+  startup, and job history is kept for 30 minutes.
+- **Running unattended.** Background jobs need RCON even when nobody is signed in. Compose passes
+  `RCON_PASSWORD` to the manager as `Rcon__Password` for that. Remove the variable to keep the
+  password in browsers only. Rules then pause after a manager restart until someone signs in, and
+  the panel warns about it.
+
+### Job dashboard
+
+The Hangfire dashboard is at <http://localhost:8118/hangfire> (the **Jobs** button on the Maps
+page). It uses the **same sign-in** as the app: opening it signed out sends you to the login page,
+where you enter the RCON password, and then back to the dashboard. Its API endpoints are locked the
+same way. Each check shows its result there, for example
+`datacenter TDM 12–9 at 06:41: playing on` or
+`Match ended: Blue wins 10–5. Led by 100%, limit 10%. Rotated to the next map.`
+
 ## Security
 
 - **No separate accounts.** Whoever knows the RCON password can manage the server. The password
   is checked by actually signing in to RCON.
-- **The password stays in memory only.** It isn't written to disk or put in the cookie. After the
+- **The password isn't stored by the app.** It isn't written to disk or put in the cookie. It
+  only comes from your sign-in, or from `Rcon__Password` when you run rules unattended. After the
   manager restarts, or after the RCON password changes, every browser signs in again: cookies
   carry a session generation that is checked on every request and every 30 s in open tabs.
+- **The Hangfire dashboard** (`/hangfire`) needs the same sign-in as the app.
 - **Cookie:** HttpOnly and `SameSite=Strict`, valid for 12 h (sliding). Forms use antiforgery
   tokens.
 - **Guessing is slowed down.** 5 wrong passwords from one IP within 10 minutes lock that IP out
@@ -66,8 +106,9 @@ management/
 ├── src/Pavlov.Manager/            Blazor app
 │   ├── Styles/app.css             Tailwind source and design tokens → wwwroot/app.css (generated)
 │   ├── Services/                  RconSession, ServerMonitor, RconActions, LoginThrottle, toasts/dialogs
+│   │   └── EndOfGame/             rules, evaluator, match tracker, Hangfire job and scheduler
 │   └── Components/                Layout, Pages, UI (Sheet, PlayerSheet, Icon, …)
-└── tests/Pavlov.Rcon.Tests/       xUnit v3, including a fake RCON server
+└── tests/Pavlov.Rcon.Tests/       xUnit v3: protocol (fake RCON server) and end-of-game logic
 ```
 
 Run the app locally against the server's published RCON port (`127.0.0.1:9100`):
@@ -76,7 +117,8 @@ Run the app locally against the server's published RCON port (`127.0.0.1:9100`):
 dotnet run --project src/Pavlov.Manager
 ```
 
-It serves <http://localhost:5299>. Each build regenerates the Tailwind CSS with npm; the first build
+It serves <http://localhost:5299>. Rules are saved under `src/Pavlov.Manager/data/` (git-ignored).
+Add `--Rcon:Password=…` to let rules run without signing in. Each build regenerates the Tailwind CSS with npm; the first build
 runs `npm ci`. For live CSS while you edit markup, run this in `src/Pavlov.Manager`:
 
 ```bash

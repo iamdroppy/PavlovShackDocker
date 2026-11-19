@@ -5,3 +5,4 @@ management/**/bin/
 management/**/obj/
 management/**/node_modules/
 management/src/Pavlov.Manager/wwwroot/app.css
+management/src/Pavlov.Manager/data/

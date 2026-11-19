@@ -25,6 +25,11 @@
     <Content Remove="package.json;package-lock.json" />
     <None Include="package.json;package-lock.json" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Hangfire.AspNetCore" Version="1.8.25" />
+    <PackageReference Include="Hangfire.InMemory" Version="1.0.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+  </ItemGroup>
 
   <Target Name="TailwindNpmInstall" BeforeTargets="TailwindBuild" Condition="'$(SkipTailwind)' != 'true' And !Exists('node_modules/.bin/tailwindcss')">
     <Exec Command="npm ci --no-audit --no-fund" />

@@ -18,7 +18,15 @@ public abstract class LiveComponent : ComponentBase, IDisposable
 
     public void Dispose()
     {
-        _subscription?.Dispose();
+        Dispose(disposing: true);
         GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _subscription?.Dispose();
+        }
     }
 }

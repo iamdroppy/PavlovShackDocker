@@ -4,7 +4,13 @@
     {
       "name": "manager",
       "runtimeExecutable": "dotnet",
-      "runtimeArgs": ["run", "--project", "management/src/Pavlov.Manager", "--launch-profile", "http"],
+      "runtimeArgs": [
+        "run",
+        "--project",
+        "management/src/Pavlov.Manager",
+        "--launch-profile",
+        "http"
+      ],
       "port": 5299
     }
   ]

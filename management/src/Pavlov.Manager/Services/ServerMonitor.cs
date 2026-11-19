@@ -1,4 +1,5 @@
 using System.Threading.Channels;
+using Pavlov.Manager.Services.EndOfGame;
 using Pavlov.Rcon;
 
 namespace Pavlov.Manager.Services;
@@ -15,7 +16,7 @@ public sealed record ServerSnapshot(ServerInfo? Info, IReadOnlyList<PlayerDetail
 /// stays the same however many browsers are watching. Polls only while someone
 /// is subscribed and the session is signed in.
 /// </summary>
-public sealed class ServerMonitor(RconSession session, ILogger<ServerMonitor> logger) : BackgroundService
+public sealed class ServerMonitor(RconSession session, MatchTracker tracker, ILogger<ServerMonitor> logger) : BackgroundService
 {
     private static readonly TimeSpan Interval = TimeSpan.FromSeconds(3);
 
@@ -63,6 +64,7 @@ public sealed class ServerMonitor(RconSession session, ILogger<ServerMonitor> lo
             var client = session.Client;
             var info = await client.GetServerInfoAsync(cancellationToken);
             var players = await client.InspectAllAsync(cancellationToken);
+            tracker.Observe(info);
             Snapshot = new ServerSnapshot(info, players, DateTimeOffset.UtcNow, null);
         }
         catch (RconAuthenticationException)

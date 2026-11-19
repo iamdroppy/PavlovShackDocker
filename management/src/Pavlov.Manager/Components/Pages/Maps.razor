@@ -2,6 +2,7 @@
 @inherits LiveComponent
 @inject RconActions Rcon
 @inject DialogService Dialogs
+@inject Pavlov.Manager.Services.EndOfGame.RuleStore Rules
 
 <PageTitle>Maps · Shack Control</PageTitle>
 
@@ -10,6 +11,8 @@
         <button type="button" class="btn btn-soft" @onclick="RotateAsync"><Icon Name="next" Class="size-4" />Next map</button>
     </Actions>
 </PageHeader>
+
+<EndOfGamePanel RotationMaps="RotationMapIds" />
 
 <div class="grid gap-4 lg:grid-cols-[1fr_24rem]">
     <section class="surface overflow-hidden">
@@ -47,6 +50,10 @@
                                 }
                             </p>
                             <p class="mt-0.5 truncate text-xs text-zinc-500"><span class="font-mono">@entry.MapId</span> · @PavlovCatalog.GameModeName(entry.GameMode)</p>
+                            @if (RuleFor(entry) is { } rule)
+                            {
+                                <p class="mt-1 flex items-start gap-1.5 text-[0.68rem] leading-snug text-signal-300/80"><Icon Name="flag" Class="mt-px size-3 shrink-0" StrokeWidth="2" /><span>Ends at @string.Join(" · ", rule.Conditions)</span></p>
+                            }
                         </div>
                         <span class="chip hidden font-mono sm:inline-flex">@entry.GameMode</span>
                         <button type="button" class="btn btn-soft btn-sm" @onclick="() => PlayNowAsync(entry.MapId, entry.GameMode)" aria-label="Play @entry.MapId now"><Icon Name="play" Class="size-3.5" /><span class="hidden sm:inline">Play</span></button>
@@ -126,7 +133,16 @@
     private string gameMode = "TDM";
     private string? modId;
 
+    private List<string> RotationMapIds => [.. rotation.Select(e => e.MapId).Distinct(StringComparer.OrdinalIgnoreCase)];
+
     protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    /// <summary>The first enabled rule that would apply to this rotation entry (map-specific rules first).</summary>
+    private Pavlov.Manager.Services.EndOfGame.EndOfGameRule? RuleFor(MapRotationEntry entry)
+    {
+        var info = new ServerInfo { MapLabel = entry.MapId, GameMode = entry.GameMode };
+        return Rules.Rules.Where(r => r.Enabled && r.Matches(info)).OrderBy(r => r.MapId is null).FirstOrDefault();
+    }
 
     private async Task LoadAsync()
     {
